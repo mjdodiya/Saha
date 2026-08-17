@@ -1,0 +1,122 @@
+import type {
+  BleError,
+  BleManager as NativeBleManager,
+  Device,
+  ScanOptions,
+  State,
+  Subscription,
+} from "react-native-ble-plx";
+
+import type { BluetoothState } from "./types";
+
+declare const require: (moduleName: string) => unknown;
+
+type BlePlxModule = typeof import("react-native-ble-plx");
+
+let manager: NativeBleManager | null = null;
+let moduleLoadError: Error | null = null;
+
+function log(message: string, details?: unknown) {
+  if (!__DEV__) {
+    return;
+  }
+
+  if (details === undefined) {
+    console.log(`[BLE] ${message}`);
+    return;
+  }
+
+  console.log(`[BLE] ${message}`, details);
+}
+
+function loadBleModule(): BlePlxModule | null {
+  try {
+    return require("react-native-ble-plx") as BlePlxModule;
+  } catch (error) {
+    moduleLoadError =
+      error instanceof Error ? error : new Error("Unable to load BLE module");
+    log("Native module unavailable", moduleLoadError.message);
+    return null;
+  }
+}
+
+function getNativeManager(): NativeBleManager | null {
+  if (manager) {
+    return manager;
+  }
+
+  const bleModule = loadBleModule();
+
+  if (!bleModule) {
+    return null;
+  }
+
+  manager = new bleModule.BleManager();
+  return manager;
+}
+
+export const bleManager = {
+  getModuleError() {
+    return moduleLoadError;
+  },
+
+  async getState(): Promise<BluetoothState> {
+    const nativeManager = getNativeManager();
+
+    if (!nativeManager) {
+      return "Unavailable";
+    }
+
+    const state = await nativeManager.state();
+    log(`Bluetooth state: ${state}`);
+    return state;
+  },
+
+  onStateChange(
+    listener: (newState: BluetoothState) => void,
+    emitCurrentState = false,
+  ): Subscription | null {
+    const nativeManager = getNativeManager();
+
+    if (!nativeManager) {
+      if (emitCurrentState) {
+        listener("Unavailable");
+      }
+
+      return null;
+    }
+
+    return nativeManager.onStateChange((newState: State) => {
+      log(`Bluetooth state: ${newState}`);
+      listener(newState);
+    }, emitCurrentState);
+  },
+
+  async startDeviceScan(
+    serviceUUIDs: string[] | null,
+    options: ScanOptions | null,
+    listener: (error: BleError | null, scannedDevice: Device | null) => void,
+  ) {
+    const nativeManager = getNativeManager();
+
+    if (!nativeManager) {
+      throw new Error(
+        "Bluetooth native module is unavailable. Build a development/native app; Expo Go cannot run react-native-ble-plx.",
+      );
+    }
+
+    await nativeManager.startDeviceScan(serviceUUIDs, options, listener);
+    log("Scan started");
+  },
+
+  async stopDeviceScan() {
+    const nativeManager = getNativeManager();
+
+    if (!nativeManager) {
+      return;
+    }
+
+    await nativeManager.stopDeviceScan();
+    log("Scan stopped");
+  },
+};
