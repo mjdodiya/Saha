@@ -35,7 +35,7 @@ function normalizeUuid(value: string) {
 }
 
 function isSahaCompatibleDevice(device: Device) {
-  const advertisedName = device.localName ?? device.name ?? "";
+  const advertisedName = device.name ?? device.localName ?? "";
   const hasSahaName = SAHA_BLE_CONFIG.namePrefixes.some((prefix) =>
     advertisedName.startsWith(prefix),
   );
@@ -50,7 +50,7 @@ function isSahaCompatibleDevice(device: Device) {
 function toDiscoveredDevice(device: Device): DiscoveredDevice {
   return {
     id: device.id,
-    name: device.localName ?? device.name ?? null,
+    name: device.name ?? device.localName ?? null,
     rssi: device.rssi ?? null,
     isSahaDevice: isSahaCompatibleDevice(device),
   };
@@ -61,25 +61,39 @@ async function requestBlePermissions() {
     return true;
   }
 
-  if (Platform.Version >= 31) {
-    const result = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-    ]);
+  try {
+    if (Platform.Version >= 31) {
+      const result = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      ]);
 
-    return (
-      result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] ===
-        PermissionsAndroid.RESULTS.GRANTED &&
-      result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] ===
-        PermissionsAndroid.RESULTS.GRANTED
+      const isGranted =
+        result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] ===
+          PermissionsAndroid.RESULTS.GRANTED &&
+        result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] ===
+          PermissionsAndroid.RESULTS.GRANTED;
+
+      if (!isGranted) {
+        log("Permission denied");
+      }
+      return isGranted;
+    }
+
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     );
+
+    const isGranted = result === PermissionsAndroid.RESULTS.GRANTED;
+    if (!isGranted) {
+      log("Permission denied");
+    }
+    return isGranted;
+  } catch (error) {
+    log("Permission request error", error);
+    return false;
   }
-
-  const result = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-  );
-
-  return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 export class BleScanner {
@@ -99,10 +113,10 @@ export class BleScanner {
 
   listenForState() {
     this.removeStateListener();
-    this.stateSubscription = bleManager.onStateChange(
-      this.callbacks.onBluetoothStateChange,
-      true,
-    );
+    this.stateSubscription = bleManager.onStateChange((state) => {
+      log(`Bluetooth state: ${state}`);
+      this.callbacks.onBluetoothStateChange(state);
+    }, true);
   }
 
   async startScan() {
@@ -124,35 +138,38 @@ export class BleScanner {
       this.callbacks.onError(
         "Bluetooth permission was denied. Allow Bluetooth access to scan nearby devices.",
       );
+      log("Permission denied");
       return;
     }
 
     const state = await bleManager.getState();
+    log(`Bluetooth state: ${state}`);
     this.callbacks.onBluetoothStateChange(state);
 
     if (state === "Unavailable") {
       this.callbacks.onStatusChange("bluetooth-unavailable");
       this.callbacks.onError(
-        "Bluetooth is unavailable in this build. Use a development/native build, not Expo Go.",
+        "SAHA BLE scanning requires a native development build (react-native-ble-plx is unavailable in Expo Go).",
       );
       return;
     }
 
     if (state === "Unsupported" || state === "Unauthorized") {
       this.callbacks.onStatusChange("bluetooth-unavailable");
-      this.callbacks.onError("Bluetooth is unavailable or unauthorized.");
+      this.callbacks.onError("Bluetooth is unsupported or unauthorized on this device.");
       return;
     }
 
     if (state !== "PoweredOn") {
       this.callbacks.onStatusChange("bluetooth-off");
-      this.callbacks.onError("Turn on Bluetooth to scan nearby SAHA devices.");
+      this.callbacks.onError("Bluetooth is turned off. Turn on Bluetooth to scan.");
       return;
     }
 
     try {
       this.isScanning = true;
       this.callbacks.onStatusChange("scanning");
+      log("Scan started");
 
       await bleManager.startDeviceScan(
         null,
@@ -160,8 +177,8 @@ export class BleScanner {
         (error, scannedDevice) => {
           if (error) {
             this.callbacks.onStatusChange("error");
-            this.callbacks.onError("BLE scan failed. Stop and try again.");
-            log("Scan failure", error.message);
+            this.callbacks.onError(`Scan error: ${error.message}`);
+            log(`Scan error: ${error.message}`);
             void this.stopScan("error");
             return;
           }
@@ -172,12 +189,8 @@ export class BleScanner {
 
           const discoveredDevice = toDiscoveredDevice(scannedDevice);
           this.devices.set(discoveredDevice.id, discoveredDevice);
-          log("Device discovered", {
-            id: discoveredDevice.id,
-            name: discoveredDevice.name,
-            rssi: discoveredDevice.rssi,
-            isSahaDevice: discoveredDevice.isSahaDevice,
-          });
+          const displayName = discoveredDevice.name ?? "Unknown Device";
+          log(`Device discovered: ${displayName} (${discoveredDevice.id})`);
           this.emitDevices();
         },
       );
@@ -187,11 +200,11 @@ export class BleScanner {
       }, SAHA_BLE_CONFIG.scanTimeoutMs);
     } catch (error) {
       this.isScanning = false;
+      const errorMsg =
+        error instanceof Error ? error.message : "Unable to start BLE scan.";
       this.callbacks.onStatusChange("error");
-      this.callbacks.onError(
-        error instanceof Error ? error.message : "Unable to start BLE scan.",
-      );
-      log("Unable to start scan", error);
+      this.callbacks.onError(`Scan error: ${errorMsg}`);
+      log(`Scan error: ${errorMsg}`);
     }
   }
 
@@ -209,10 +222,11 @@ export class BleScanner {
 
     try {
       await bleManager.stopDeviceScan();
+      log("Scan stopped");
     } catch (error) {
       this.callbacks.onStatusChange("error");
       this.callbacks.onError("Unable to stop BLE scan cleanly.");
-      log("Unable to stop scan", error);
+      log("Scan error on stop", error);
       return;
     }
 
