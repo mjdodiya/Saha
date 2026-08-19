@@ -42,6 +42,12 @@
       "expo-router",
       "expo-dev-client",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow SAHA to show this device's live location."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",

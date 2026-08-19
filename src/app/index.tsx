@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
+import * as Location from "expo-location";
 import {
   ActivityIndicator,
   Pressable,
@@ -491,12 +493,110 @@ function MeshNode({
   );
 }
 
+function formatLocationCoords(location: Location.LocationObject | null) {
+  if (!location) {
+    return "Finding current location...";
+  }
+
+  const { latitude, longitude } = location.coords;
+
+  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function formatLocationNote(location: Location.LocationObject | null) {
+  if (!location) {
+    return "Allow location access so SAHA can show this device's live position.";
+  }
+
+  const accuracy = location.coords.accuracy;
+  const updatedAt = new Date(location.timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `Updated ${updatedAt}${
+    accuracy === null ? "" : ` - accuracy about ${Math.round(accuracy)}m`
+  }`;
+}
+
 function LocationContext() {
+  const [deviceLocation, setDeviceLocation] =
+    useState<Location.LocationObject | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let subscription: Location.LocationSubscription | null = null;
+
+    async function startLocationTracking() {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (status !== Location.PermissionStatus.GRANTED) {
+        setLocationError("Location permission is off");
+        return;
+      }
+
+      try {
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        if (isMounted) {
+          setDeviceLocation(currentLocation);
+          setLocationError(null);
+        }
+
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 10,
+            timeInterval: 5000,
+          },
+          (updatedLocation) => {
+            if (isMounted) {
+              setDeviceLocation(updatedLocation);
+              setLocationError(null);
+            }
+          },
+          () => {
+            if (isMounted) {
+              setLocationError("Unable to update live location");
+            }
+          }
+        );
+
+        if (!isMounted) {
+          subscription.remove();
+        }
+      } catch {
+        if (isMounted) {
+          setLocationError("Unable to read this device's location");
+        }
+      }
+    }
+
+    startLocationTracking();
+
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+    };
+  }, []);
+
+  const locationPlace = locationError ?? formatLocationCoords(deviceLocation);
+  const locationNote = locationError
+    ? "Turn on location permission to show this device's current position."
+    : formatLocationNote(deviceLocation);
+
   return (
     <View style={[styles.infoCard, styles.locationCard]}>
-      <Text style={styles.infoCardTitle}>{MOCK_HOME.location.title}</Text>
-      <Text style={styles.locationPlace}>{MOCK_HOME.location.place}</Text>
-      <Text style={styles.infoCardText}>{MOCK_HOME.location.note}</Text>
+      <Text style={styles.infoCardTitle}>Live device location</Text>
+      <Text style={styles.locationPlace}>{locationPlace}</Text>
+      <Text style={styles.infoCardText}>{locationNote}</Text>
 
       <View style={styles.emptyStatePreview}>
         <Text style={styles.emptyStatePreviewTitle}>Local BLE Sync</Text>
