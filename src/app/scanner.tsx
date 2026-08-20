@@ -5,6 +5,7 @@ import {
   Animated,
   Easing,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -15,8 +16,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import type { ConnectionTestResult } from "@/ble/BleConnection";
+import { runSahaConnectionTest } from "@/ble/BleConnection";
 import type { DiscoveredDevice } from "@/ble/types";
 import { useBleScanner } from "@/hooks/useBleScanner";
+import { useBlePeripheral } from "@/hooks/useBlePeripheral";
 
 export function getRssiMetadata(rssi: number | null) {
   if (rssi === null) {
@@ -75,6 +79,11 @@ export default function ScannerScreen() {
     stopScan,
   } = useBleScanner();
 
+  const {
+    status: peripheralStatus,
+    advertisingName,
+  } = useBlePeripheral();
+
   const [selectedFilter, setSelectedFilter] = useState<"all" | "saha">("all");
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredDevice | null>(
     null,
@@ -129,7 +138,9 @@ export default function ScannerScreen() {
 
         <View style={styles.headerTitleGroup}>
           <Text style={styles.headerTitle}>Radar Scanner</Text>
-          <Text style={styles.headerSubtitle}>BLE Discovery Layer</Text>
+          <Text style={styles.headerSubtitle}>
+            {advertisingName} ({peripheralStatus})
+          </Text>
         </View>
 
         <Pressable
@@ -659,6 +670,23 @@ function DeviceDetailModal({
 }) {
   const rssiMeta = getRssiMetadata(device.rssi);
 
+  const [testRunning, setTestRunning] = useState(false);
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [testLogs, setTestLogs] = useState<string[]>([]);
+
+  const handleRunTest = async () => {
+    setTestRunning(true);
+    setTestResult(null);
+    setTestLogs([]);
+
+    const result = await runSahaConnectionTest(device.id, (_state, logLine) => {
+      setTestLogs((prev) => [...prev, logLine]);
+    });
+
+    setTestResult(result);
+    setTestRunning(false);
+  };
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -707,6 +735,49 @@ function DeviceDetailModal({
                   : "Standard BLE Signal"}
               </Text>
             </View>
+          </View>
+
+          {/* Test Connectivity Action (Ping / Pong) */}
+          <View style={styles.testContainer}>
+            <Pressable
+              disabled={testRunning}
+              onPress={handleRunTest}
+              style={({ pressed }) => [
+                styles.testButton,
+                testRunning && styles.testButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              {testRunning ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.testButtonText}>
+                  {device.isSahaDevice ? "Connect & Test Ping/Pong" : "Connect & Read Device"}
+                </Text>
+              )}
+            </Pressable>
+
+            {testLogs.length > 0 && (
+              <ScrollView style={styles.logsBox} nestedScrollEnabled>
+                {testLogs.map((line, idx) => (
+                  <Text key={idx} style={styles.logText}>
+                    {line}
+                  </Text>
+                ))}
+                {testResult && (
+                  <Text
+                    style={[
+                      styles.logResultText,
+                      { color: testResult.success ? "#10B981" : "#EF4444" },
+                    ]}
+                  >
+                    {testResult.success
+                      ? `SUCCESS! Read Identity: "${testResult.readIdentity}", Received Notification: "${testResult.receivedNotification}"`
+                      : `FAILED: ${testResult.errorMessage}`}
+                  </Text>
+                )}
+              </ScrollView>
+            )}
           </View>
 
           <Pressable
@@ -1168,11 +1239,52 @@ const styles = StyleSheet.create({
     textAlign: "right",
     flexShrink: 1,
   },
+  testContainer: {
+    marginTop: 14,
+  },
+  testButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  testButtonDisabled: {
+    backgroundColor: "#059669",
+    opacity: 0.7,
+  },
+  testButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  logsBox: {
+    maxHeight: 140,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  logText: {
+    color: "#CBD5E1",
+    fontSize: 11,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    marginBottom: 2,
+  },
+  logResultText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: "800",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
   modalDoneButton: {
-    marginTop: 18,
+    marginTop: 14,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#334155",
     alignItems: "center",
   },
   modalDoneText: {

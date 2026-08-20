@@ -42,7 +42,7 @@ function isSahaCompatibleDevice(device: Device) {
   const serviceUuids = device.serviceUUIDs ?? [];
   const hasSahaService = serviceUuids
     .map(normalizeUuid)
-    .includes(normalizeUuid(SAHA_BLE_CONFIG.temporaryServiceUuid));
+    .includes(normalizeUuid(SAHA_BLE_CONFIG.serviceUuid));
 
   return hasSahaName || hasSahaService;
 }
@@ -53,6 +53,7 @@ function toDiscoveredDevice(device: Device): DiscoveredDevice {
     name: device.name ?? device.localName ?? null,
     rssi: device.rssi ?? null,
     isSahaDevice: isSahaCompatibleDevice(device),
+    serviceUUIDs: device.serviceUUIDs ?? undefined,
   };
 }
 
@@ -66,6 +67,7 @@ async function requestBlePermissions() {
       const result = await PermissionsAndroid.requestMultiple([
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       ]);
 

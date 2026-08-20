@@ -63,6 +63,10 @@ function getNativeManager(): NativeBleManager | null {
 }
 
 export const bleManager = {
+  getNativeManager(): NativeBleManager | null {
+    return getNativeManager();
+  },
+
   getModuleError() {
     return moduleLoadError;
   },

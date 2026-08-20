@@ -19,8 +19,10 @@ import type {
   BleScannerStatus,
   BluetoothState,
   DiscoveredDevice,
+  PeripheralStatus,
 } from "@/ble/types";
 import { useBleScanner } from "@/hooks/useBleScanner";
+import { useBlePeripheral } from "@/hooks/useBlePeripheral";
 
 type ActivityTone = "critical" | "warning" | "community";
 
@@ -30,15 +32,6 @@ type NearbyActivity = {
   title: string;
   meta: string;
   tone: ActivityTone;
-};
-
-const MOCK_HOME = {
-  identity: "N7",
-  location: {
-    title: "Your area",
-    place: "Amsterdam · Approximate location",
-    note: "Location is shown as context only",
-  },
 };
 
 export default function Index() {
@@ -57,6 +50,13 @@ export default function Index() {
     stopScan,
   } = useBleScanner();
 
+  const {
+    status: peripheralStatus,
+    nodeId,
+    advertisingName,
+    errorMessage: peripheralError,
+  } = useBlePeripheral();
+
   const sahaDevicesCount = devices.filter((d) => d.isSahaDevice).length;
 
   const handleOpenScanner = () => {
@@ -74,12 +74,15 @@ export default function Index() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Header identity={MOCK_HOME.identity} />
+        <Header identity={nodeId || "N7"} />
 
         <NetworkStatusCard
           isCompact={isCompact}
           status={status}
           bluetoothState={bluetoothState}
+          peripheralStatus={peripheralStatus}
+          advertisingName={advertisingName}
+          peripheralError={peripheralError}
           sahaCount={sahaDevicesCount}
           totalCount={totalDeviceCount}
           errorMessage={errorMessage}
@@ -153,6 +156,9 @@ function NetworkStatusCard({
   isCompact,
   status,
   bluetoothState,
+  peripheralStatus,
+  advertisingName,
+  peripheralError,
   sahaCount,
   totalCount,
   errorMessage,
@@ -161,21 +167,49 @@ function NetworkStatusCard({
   isCompact: boolean;
   status: BleScannerStatus;
   bluetoothState: BluetoothState;
+  peripheralStatus: PeripheralStatus;
+  advertisingName: string;
+  peripheralError?: string | null;
   sahaCount: number;
   totalCount: number;
   errorMessage: string;
   onPressCard: () => void;
 }) {
-  let badgeText = "Mesh ready";
+  let badgeText: string = peripheralStatus;
   let badgeColor = "#55D187";
   let statusText = "Ready to discover nearby nodes";
-  let subText = "Offline mode active";
+  let subText = `Broadcasting as ${advertisingName}`;
 
-  if (status === "scanning") {
+  if (peripheralStatus === "Advertising") {
+    badgeText = "Advertising";
+    badgeColor = "#10B981";
+    statusText = `Broadcasting BLE service (${advertisingName})`;
+    subText = "Peripheral active & discoverable";
+  } else if (peripheralStatus === "Connected") {
+    badgeText = "Connected";
+    badgeColor = "#10B981";
+    statusText = `Central node connected to ${advertisingName}`;
+    subText = "GATT server active";
+  } else if (peripheralStatus === "Advertising Failed") {
+    badgeText = "Adv Failed";
+    badgeColor = "#EF4444";
+    statusText = peripheralError || "BLE advertising failed";
+    subText = "Check Bluetooth permissions & hardware";
+  } else if (peripheralStatus === "Initializing") {
+    badgeText = "Initializing";
+    badgeColor = "#60A5FA";
+    statusText = "Initializing BLE peripheral & GATT server";
+    subText = "Starting advertiser...";
+  } else if (status === "bluetooth-off" || bluetoothState === "PoweredOff" || peripheralStatus === "Bluetooth Off") {
+    badgeText = "Bluetooth Off";
+    badgeColor = "#F59E0B";
+    statusText = "Bluetooth is turned off";
+    subText = "Turn on Bluetooth to advertise & scan";
+  } else if (status === "scanning") {
     badgeText = "Scanning...";
     badgeColor = "#60A5FA";
     statusText = "Scanning for nearby BLE devices";
-    subText = "Searching for SAHA nodes";
+    subText = `Searching for nodes (Me: ${advertisingName})`;
   } else if (status === "permission-denied") {
     badgeText = "No Access";
     badgeColor = "#F59E0B";
@@ -183,19 +217,15 @@ function NetworkStatusCard({
     subText = errorMessage || "Grant location/BLE access";
   } else if (
     status === "bluetooth-unavailable" ||
-    bluetoothState === "Unavailable"
+    bluetoothState === "Unavailable" ||
+    peripheralStatus === "Unavailable"
   ) {
     badgeText = "Unavailable";
     badgeColor = "#EF4444";
-    statusText = "Bluetooth module unavailable";
-    subText = "Native dev build required for BLE scanning";
-  } else if (status === "bluetooth-off" || bluetoothState === "PoweredOff") {
-    badgeText = "Bluetooth Off";
-    badgeColor = "#F59E0B";
-    statusText = "Bluetooth is turned off";
-    subText = "Turn on Bluetooth to scan nearby nodes";
+    statusText = "Bluetooth native module unavailable";
+    subText = "Native dev build required for BLE hardware";
   } else if (status === "scan-complete") {
-    badgeText = "Scan complete";
+    badgeText = (peripheralStatus as string) === "Advertising" ? "Advertising" : "Scan complete";
     badgeColor = "#10B981";
     statusText = `Discovered ${sahaCount} SAHA node${
       sahaCount === 1 ? "" : "s"
@@ -556,7 +586,7 @@ function LocationContext() {
             distanceInterval: 10,
             timeInterval: 5000,
           },
-          (updatedLocation) => {
+          (updatedLocation: Location.LocationObject) => {
             if (isMounted) {
               setDeviceLocation(updatedLocation);
               setLocationError(null);
