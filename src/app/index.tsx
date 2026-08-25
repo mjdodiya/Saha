@@ -299,6 +299,7 @@ function PrimaryAction({
   isScanning: boolean;
   onOpenScanner: () => void;
 }) {
+  const router = useRouter();
   return (
     <View style={styles.actionsCard}>
       <Pressable
@@ -335,17 +336,21 @@ function PrimaryAction({
           isCompact && styles.secondaryActionsCompact,
         ]}
       >
-        <SecondaryAction label="Create alert" />
+        <SecondaryAction
+          label="BLE Chat"
+          onPress={() => router.push("/chat" as any)}
+        />
         <SecondaryAction label="Create channel" />
       </View>
     </View>
   );
 }
 
-function SecondaryAction({ label }: { label: string }) {
+function SecondaryAction({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
+      onPress={onPress}
       style={({ pressed }) => [
         styles.secondaryButton,
         pressed && styles.buttonPressed,

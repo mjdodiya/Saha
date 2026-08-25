@@ -668,11 +668,23 @@ function DeviceDetailModal({
   device: DiscoveredDevice;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const rssiMeta = getRssiMetadata(device.rssi);
 
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [testLogs, setTestLogs] = useState<string[]>([]);
+
+  const handleOpenChat = () => {
+    onClose();
+    router.push({
+      pathname: "/chat" as any,
+      params: {
+        deviceId: device.id,
+        deviceName: device.name ?? (device.isSahaDevice ? "SAHA Node" : "BLE Device"),
+      },
+    });
+  };
 
   const handleRunTest = async () => {
     setTestRunning(true);
@@ -736,6 +748,17 @@ function DeviceDetailModal({
               </Text>
             </View>
           </View>
+
+          {/* Primary Chat Action */}
+          <Pressable
+            onPress={handleOpenChat}
+            style={({ pressed }) => [
+              styles.chatModalButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.chatModalButtonText}>💬 Start BLE Chat Session</Text>
+          </Pressable>
 
           {/* Test Connectivity Action (Ping / Pong) */}
           <View style={styles.testContainer}>
@@ -1239,8 +1262,22 @@ const styles = StyleSheet.create({
     textAlign: "right",
     flexShrink: 1,
   },
-  testContainer: {
+  chatModalButton: {
     marginTop: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatModalButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  testContainer: {
+    marginTop: 10,
   },
   testButton: {
     paddingVertical: 12,

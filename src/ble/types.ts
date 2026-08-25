@@ -50,3 +50,19 @@ export type ConnectionTestState =
   | "writing_ping"
   | "ping_pong_success"
   | "error";
+
+export type ChatMessage = {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: number;
+  isSelf: boolean;
+};
+
+export type ChatConnectionState =
+  | "disconnected"
+  | "connecting"
+  | "discovering"
+  | "connected"
+  | "error";
+

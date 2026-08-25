@@ -5,7 +5,7 @@ import type { Characteristic, Device, Subscription } from "react-native-ble-plx"
 
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 
-function encodeBase64(input: string): string {
+export function encodeBase64(input: string): string {
   let output = "";
   let i = 0;
   while (i < input.length) {
@@ -34,7 +34,7 @@ function encodeBase64(input: string): string {
   return output;
 }
 
-function decodeBase64(input: string): string {
+export function decodeBase64(input: string): string {
   let output = "";
   let i = 0;
   const cleaned = input.replace(/[^A-Za-z0-9+/=]/g, "");
