@@ -8,12 +8,11 @@ import type {
   PeripheralStatus,
 } from '@/ble/types';
 import { HomeDesign } from '@/design/HomeDesign';
-import { useBleChat } from '@/hooks/useBleChat';
-import { useBlePeripheral } from '@/hooks/useBlePeripheral';
-import { useBleScanner } from '@/hooks/useBleScanner';
+import { useBleContext } from '@/hooks/BleContext';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { scanner, peripheral, chat } = useBleContext();
   const [locationLabel, setLocationLabel] = useState(
     'Finding your location...',
   );
@@ -24,9 +23,9 @@ export default function HomeScreen() {
     totalDeviceCount,
     isScanning,
     startScan,
-  } = useBleScanner();
-  const { status: peripheralStatus, nodeId } = useBlePeripheral();
-  const { messages } = useBleChat();
+  } = scanner;
+  const { status: peripheralStatus, nodeId } = peripheral;
+  const { messages } = chat;
 
   useEffect(() => {
     let isMounted = true;

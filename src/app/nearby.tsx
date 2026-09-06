@@ -3,10 +3,11 @@ import { useEffect } from 'react';
 
 import type { DiscoveredDevice } from '@/ble/types';
 import { NearbyDesign } from '@/design/NearbyDesign';
-import { useBleScanner } from '@/hooks/useBleScanner';
+import { useBleContext } from '@/hooks/BleContext';
 
 export default function NearbyScreen() {
   const router = useRouter();
+  const { scanner } = useBleContext();
   const {
     bluetoothState,
     status,
@@ -14,7 +15,7 @@ export default function NearbyScreen() {
     errorMessage,
     isScanning,
     startScan,
-  } = useBleScanner();
+  } = scanner;
 
   useEffect(() => {
     startScan();

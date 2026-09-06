@@ -19,8 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ConnectionTestResult } from "@/ble/BleConnection";
 import { runSahaConnectionTest } from "@/ble/BleConnection";
 import type { DiscoveredDevice } from "@/ble/types";
-import { useBleScanner } from "@/hooks/useBleScanner";
-import { useBlePeripheral } from "@/hooks/useBlePeripheral";
+import { useBleContext } from "@/hooks/BleContext";
 
 export function getRssiMetadata(rssi: number | null) {
   if (rssi === null) {
@@ -65,6 +64,7 @@ export function getRssiMetadata(rssi: number | null) {
 
 export default function ScannerScreen() {
   const router = useRouter();
+  const { scanner, peripheral } = useBleContext();
   const { width } = useWindowDimensions();
   const isCompact = width < 370;
 
@@ -77,12 +77,12 @@ export default function ScannerScreen() {
     isScanning,
     startScan,
     stopScan,
-  } = useBleScanner();
+  } = scanner;
 
   const {
     status: peripheralStatus,
     advertisingName,
-  } = useBlePeripheral();
+  } = peripheral;
 
   const [selectedFilter, setSelectedFilter] = useState<"all" | "saha">("all");
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredDevice | null>(

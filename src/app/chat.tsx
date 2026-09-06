@@ -1,14 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   ConversationDesign,
   MessagesDesign,
   type ConversationPreview,
 } from '@/design/ChatDesign';
-import { useBleChat } from '@/hooks/useBleChat';
-import { useBlePeripheral } from '@/hooks/useBlePeripheral';
-import { useBleScanner } from '@/hooks/useBleScanner';
+import { useBleContext } from '@/hooks/BleContext';
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -18,8 +16,9 @@ export default function ChatScreen() {
   }>();
   const targetDeviceId = params.deviceId ?? null;
   const targetDeviceName = params.deviceName ?? null;
-  const { devices } = useBleScanner();
-  const { nodeId: myNodeId } = useBlePeripheral();
+  const { scanner, peripheral, chat, connectToPeer } = useBleContext();
+  const { devices } = scanner;
+  const { nodeId: myNodeId } = peripheral;
   const {
     connectionState,
     messages,
@@ -27,7 +26,13 @@ export default function ChatScreen() {
     errorMessage,
     sendMessage,
     disconnect,
-  } = useBleChat(targetDeviceId, targetDeviceName);
+  } = chat;
+
+  useEffect(() => {
+    if (targetDeviceId) {
+      void connectToPeer(targetDeviceId, targetDeviceName);
+    }
+  }, [targetDeviceId, targetDeviceName, connectToPeer]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
 

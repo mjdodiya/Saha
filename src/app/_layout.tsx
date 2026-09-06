@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
 
 import { SahaTabBar } from '@/design/SahaTabBar';
+import { BleProvider } from '@/hooks/BleContext';
 
 export default function RootLayout() {
   return (
-    <Tabs
+    <BleProvider>
+      <Tabs
       tabBar={(props) => <SahaTabBar {...props} />}
       screenOptions={{
         headerShown: false,
@@ -30,6 +32,7 @@ export default function RootLayout() {
         name="scanner"
         options={{ href: null }}
       />
-    </Tabs>
+      </Tabs>
+    </BleProvider>
   );
 }
