@@ -38,6 +38,7 @@ export function useBleChat(
   const connectionAttemptRef = useRef(0);
   const connectionInFlightRef = useRef(false);
   const localNodeIdRef = useRef('UNKNOWN');
+  const seenMessageIdsRef = useRef(new Set<string>());
 
   const updateConnectionState = useCallback((state: ChatConnectionState) => {
     connectionStateRef.current = state;
@@ -55,6 +56,9 @@ export function useBleChat(
       status: ChatMessage['status'];
       timestamp?: number;
     }) => {
+      if (seenMessageIdsRef.current.has(id)) return;
+      seenMessageIdsRef.current.add(id);
+
       console.log(
         `[SAHA-BLE][CHAT] Adding message to state - Sender: ${senderId}, IsSelf: ${isSelf}, Text: "${content}"`,
       );
@@ -317,6 +321,32 @@ export function useBleChat(
       }
 
       const trimmedText = text.trim();
+      const outgoingMessage = createChatMessage(
+        localNodeIdRef.current,
+        trimmedText,
+      );
+      const receiverId =
+        peerIdentityRef.current || targetDeviceName || targetDeviceId || 'peer';
+      const addFailedMessage = (message: string) => {
+        setErrorMessage(message);
+        addMessage({
+          id: outgoingMessage.id,
+          senderId: outgoingMessage.senderId,
+          receiverId,
+          content: outgoingMessage.payload,
+          isSelf: true,
+          status: 'failed',
+          timestamp: outgoingMessage.timestamp * 1000,
+        });
+      };
+
+      if (
+        connectionStateRef.current === 'connecting' ||
+        connectionStateRef.current === 'discovering'
+      ) {
+        addFailedMessage('Cannot send while connecting');
+        return false;
+      }
 
       // If connected as Central to target device (Central -> Peripheral via RX write)
       if (
@@ -326,12 +356,6 @@ export function useBleChat(
         try {
           console.log(
             `[SAHA-BLE][CENTRAL][RX] Central writing text message to RX characteristic (${RX_CHARACTERISTIC_UUID}): "${trimmedText}"`,
-          );
-          const outgoingMessage = createChatMessage(
-            localNodeIdRef.current,
-            trimmedText,
-            undefined,
-            Math.floor(Date.now() / 1000),
           );
           const base64Payload = encodeBase64(encodeMessage(outgoingMessage));
           console.log(
@@ -360,19 +384,20 @@ export function useBleChat(
           const msg =
             err instanceof Error ? err.message : 'Failed to send RX write';
           console.log(`[SAHA-BLE][CENTRAL][RX] RX write error: ${msg}`);
-          setErrorMessage(`Send failed: ${msg}`);
+          addFailedMessage(`Send failed: ${msg}`);
           return false;
         }
+      }
+
+      if (targetDeviceId) {
+        addFailedMessage('No active BLE connection to send message');
+        return false;
       }
 
       // Fallback or Peripheral Mode: send TX notification to connected Centrals (Peripheral -> Central via TX notification)
       if (sahaBlePeripheral.isAvailable()) {
         console.log(
           `[SAHA-BLE][PERIPHERAL][TX] Peripheral sending TX notification to connected Centrals: "${trimmedText}"`,
-        );
-        const outgoingMessage = createChatMessage(
-          localNodeIdRef.current,
-          trimmedText,
         );
         const success = await sahaBlePeripheral.sendNotification(
           encodeMessage(outgoingMessage),
@@ -395,9 +420,7 @@ export function useBleChat(
           console.log(
             '[SAHA-BLE][PERIPHERAL][TX] Failed to send TX notification (no connected Central)',
           );
-          setErrorMessage(
-            'Failed to send TX notification (no connected Central)',
-          );
+          addFailedMessage('Failed to send TX notification (no connected Central)');
           return false;
         }
       }
@@ -405,7 +428,7 @@ export function useBleChat(
       console.log(
         '[SAHA-BLE][CHAT] Error: No active BLE connection available to send message',
       );
-      setErrorMessage('No active BLE connection to send message');
+      addFailedMessage('No active BLE connection to send message');
       return false;
     },
     [addMessage, targetDeviceId, targetDeviceName],
