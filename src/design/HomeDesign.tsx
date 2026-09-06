@@ -1,5 +1,5 @@
-import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Pressable,
@@ -54,7 +54,11 @@ export function HomeDesign({
             accessibilityLabel="Bluetooth connection status"
             onPress={onOpenNearby}
             style={styles.bluetoothButton}>
-            <Ionicons name="bluetooth" size={17} color="#A3A39E" />
+            <Ionicons
+              name="bluetooth"
+              size={17}
+              color="#A3A39E"
+            />
           </Pressable>
         </View>
 
@@ -127,7 +131,11 @@ export function HomeDesign({
                 pressed && styles.pressed,
               ]}>
               <View style={styles.messageIcon}>
-                <Ionicons name="chatbubble-outline" size={15} color="#5270DC" />
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={15}
+                  color="#5270DC"
+                />
               </View>
               <View style={styles.messageCopy}>
                 <Text style={styles.messageSender}>No recent messages</Text>
@@ -147,19 +155,35 @@ export function HomeDesign({
               isScanning ? (
                 <ActivityIndicator color="#3159DB" />
               ) : (
-                <Ionicons name="bluetooth-outline" size={20} color="#3159DB" />
+                <Ionicons
+                  name="bluetooth-outline"
+                  size={20}
+                  color="#3159DB"
+                />
               )
             }
             label={isScanning ? 'Scanning' : 'Nearby'}
             onPress={onStartNearbyScan}
           />
           <QuickAction
-            icon={<Ionicons name="chatbubble-ellipses-outline" size={20} color="#3159DB" />}
+            icon={
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={20}
+                color="#3159DB"
+              />
+            }
             label="Messages"
             onPress={onOpenMessages}
           />
           <QuickAction
-            icon={<Ionicons name="medical-outline" size={20} color="#3159DB" />}
+            icon={
+              <Ionicons
+                name="medical-outline"
+                size={20}
+                color="#3159DB"
+              />
+            }
             label="Diagnose"
             onPress={onDiagnose}
           />
