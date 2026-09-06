@@ -91,7 +91,7 @@ export default function ChatScreen() {
         ? 'Connecting'
         : connectionState === 'discovering'
           ? 'Discovering'
-          : 'Available';
+          : 'Disconnected';
   const connectionColor =
     connectionState === 'connected'
       ? '#19B66A'
@@ -115,6 +115,7 @@ export default function ChatScreen() {
         errorMessage={errorMessage}
         onBack={() => router.back()}
         onDisconnect={() => void disconnect()}
+        onReconnect={() => void connectToPeer(targetDeviceId, targetDeviceName)}
         onInputChange={setInputText}
         onSend={() => void handleSend()}
       />

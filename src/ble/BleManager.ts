@@ -112,6 +112,15 @@ export const bleManager = {
     }, emitCurrentState);
   },
 
+  onDeviceDisconnected(
+    deviceId: string,
+    listener: (error: BleError | null, device: Device | null) => void,
+  ): Subscription | null {
+    const nativeManager = getNativeManager();
+    if (!nativeManager) return null;
+    return nativeManager.onDeviceDisconnected(deviceId, listener);
+  },
+
   async startDeviceScan(
     serviceUUIDs: string[] | null,
     options: ScanOptions | null,

@@ -33,6 +33,7 @@ export function useBleChat(
 
   const connectedDeviceRef = useRef<Device | null>(null);
   const txSubscriptionRef = useRef<Subscription | null>(null);
+  const disconnectSubscriptionRef = useRef<Subscription | null>(null);
   const peerIdentityRef = useRef<string | null>(null);
   const connectionStateRef = useRef<ChatConnectionState>('disconnected');
   const connectionAttemptRef = useRef(0);
@@ -87,6 +88,10 @@ export function useBleChat(
       txSubscriptionRef.current = null;
       subscription.remove();
       console.log('[SAHA-BLE][CENTRAL][TX] Unsubscribed from TX notifications');
+    }
+    if (disconnectSubscriptionRef.current) {
+      disconnectSubscriptionRef.current.remove();
+      disconnectSubscriptionRef.current = null;
     }
     const connectedDevice = connectedDeviceRef.current;
     connectedDeviceRef.current = null;
@@ -224,6 +229,26 @@ export function useBleChat(
           '[SAHA-BLE][CENTRAL][TX] TX notification subscription active',
         );
 
+        disconnectSubscriptionRef.current?.remove();
+        disconnectSubscriptionRef.current = rawManager.onDeviceDisconnected(
+          deviceId,
+          (error) => {
+            if (connectionAttemptRef.current !== attemptId) return;
+            connectionInFlightRef.current = false;
+            if (error) {
+              setErrorMessage(`Connection lost: ${error.message}`);
+            } else {
+              setErrorMessage('Connection lost');
+            }
+            connectedDeviceRef.current = null;
+            txSubscriptionRef.current?.remove();
+            txSubscriptionRef.current = null;
+            disconnectSubscriptionRef.current?.remove();
+            disconnectSubscriptionRef.current = null;
+            updateConnectionState('disconnected');
+          },
+        );
+
         if (connectionAttemptRef.current !== attemptId) {
           txSubscriptionRef.current?.remove();
           txSubscriptionRef.current = null;
@@ -245,6 +270,19 @@ export function useBleChat(
           `[SAHA-BLE][CENTRAL] BLE Connection failed for ${deviceId}: ${msg}`,
         );
         if (connectionAttemptRef.current === attemptId) {
+          txSubscriptionRef.current?.remove();
+          txSubscriptionRef.current = null;
+          disconnectSubscriptionRef.current?.remove();
+          disconnectSubscriptionRef.current = null;
+          const failedDevice = connectedDeviceRef.current;
+          connectedDeviceRef.current = null;
+          if (failedDevice) {
+            try {
+              await failedDevice.cancelConnection();
+            } catch {
+              // The connection may already be gone.
+            }
+          }
           setErrorMessage(msg);
           updateConnectionState('error');
         }

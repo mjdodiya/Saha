@@ -96,6 +96,7 @@ export type ConversationDesignProps = {
   errorMessage: string | null;
   onBack: () => void;
   onDisconnect: () => void;
+  onReconnect: () => void;
   onInputChange: (text: string) => void;
   onSend: () => void;
 };
@@ -111,6 +112,7 @@ export function ConversationDesign({
   errorMessage,
   onBack,
   onDisconnect,
+  onReconnect,
   onInputChange,
   onSend,
 }: ConversationDesignProps) {
@@ -153,17 +155,23 @@ export function ConversationDesign({
               </Text>
             </View>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Disconnect"
-            onPress={onDisconnect}
-            style={styles.moreButton}>
-            <Ionicons
-              name="ellipsis-vertical"
-              size={17}
-              color="#A0A09B"
-            />
-          </Pressable>
+          {connectionLabel === 'Disconnected' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reconnect"
+              onPress={onReconnect}
+              style={({ pressed }) => [styles.reconnectButton, pressed && styles.pressed]}>
+              <Text style={styles.reconnectText}>Reconnect</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Disconnect"
+              onPress={onDisconnect}
+              style={styles.moreButton}>
+              <Ionicons name="ellipsis-vertical" size={17} color="#A0A09B" />
+            </Pressable>
+          )}
         </View>
         {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
         {isConnecting && (
@@ -343,6 +351,8 @@ const styles = StyleSheet.create({
   connectionDot: { width: 6, height: 6, borderRadius: 3 },
   connectionText: { color: '#A0A09B', fontSize: 9 },
   moreButton: { width: 28, alignItems: 'flex-end' },
+  reconnectButton: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 7, backgroundColor: '#DDE4FF' },
+  reconnectText: { color: '#3159DB', fontSize: 9, fontWeight: '700' },
   errorText: {
     paddingHorizontal: 30,
     paddingVertical: 8,
