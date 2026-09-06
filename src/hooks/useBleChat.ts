@@ -20,6 +20,15 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
 
   const connectedDeviceRef = useRef<Device | null>(null);
   const txSubscriptionRef = useRef<Subscription | null>(null);
+  const peerIdentityRef = useRef<string | null>(null);
+  const connectionStateRef = useRef<ChatConnectionState>('disconnected');
+  const connectionAttemptRef = useRef(0);
+  const connectionInFlightRef = useRef(false);
+
+  const updateConnectionState = useCallback((state: ChatConnectionState) => {
+    connectionStateRef.current = state;
+    setConnectionState(state);
+  }, []);
 
   // Helper to add a message to chat history state with debugging log
   const addMessage = useCallback((text: string, isSelf: boolean, senderLabel?: string) => {
@@ -37,28 +46,40 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
 
   // Disconnect central session cleanly
   const disconnect = useCallback(async () => {
+    connectionAttemptRef.current += 1;
+    connectionInFlightRef.current = false;
     console.log("[SAHA-BLE][CENTRAL] Disconnecting BLE chat session...");
     if (txSubscriptionRef.current) {
-      txSubscriptionRef.current.remove();
+      const subscription = txSubscriptionRef.current;
+      txSubscriptionRef.current = null;
+      subscription.remove();
       txSubscriptionRef.current = null;
       console.log("[SAHA-BLE][CENTRAL][TX] Unsubscribed from TX notifications");
     }
-    if (connectedDeviceRef.current) {
+    const connectedDevice = connectedDeviceRef.current;
+    connectedDeviceRef.current = null;
+    if (connectedDevice) {
       try {
-        await connectedDeviceRef.current.cancelConnection();
+        await connectedDevice.cancelConnection();
         console.log("[SAHA-BLE][CENTRAL] BLE connection cancelled successfully");
       } catch (err) {
         console.log("[SAHA-BLE][CENTRAL] Disconnect warning/error:", err);
       }
-      connectedDeviceRef.current = null;
     }
-    setConnectionState("disconnected");
-  }, []);
+    updateConnectionState("disconnected");
+  }, [updateConnectionState]);
 
   // Connect as Central to target peripheral device
-  const connectToPeer = useCallback(async (deviceId: string) => {
+  const connectToPeer = useCallback(async (deviceId: string, deviceName?: string | null) => {
+    if (connectionInFlightRef.current || connectedDeviceRef.current) {
+      return;
+    }
+
+    const attemptId = connectionAttemptRef.current + 1;
+    connectionAttemptRef.current = attemptId;
+    connectionInFlightRef.current = true;
     setErrorMessage(null);
-    setConnectionState("connecting");
+    updateConnectionState("connecting");
     console.log(`[SAHA-BLE][CENTRAL] Initiating BLE connection to peripheral device: ${deviceId}`);
 
     const rawManager = bleManager.getNativeManager();
@@ -66,16 +87,21 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
       const err = "Native BLE manager is unavailable";
       console.log("[SAHA-BLE][CENTRAL] Error:", err);
       setErrorMessage(err);
-      setConnectionState("error");
+      updateConnectionState("error");
+      connectionInFlightRef.current = false;
       return;
     }
 
     try {
       const device = await rawManager.connectToDevice(deviceId, { timeout: 10000 });
+      if (connectionAttemptRef.current !== attemptId) {
+        await device.cancelConnection();
+        return;
+      }
       connectedDeviceRef.current = device;
       console.log(`[SAHA-BLE][CENTRAL] BLE connection established with device: ${deviceId}`);
 
-      setConnectionState("discovering");
+      updateConnectionState("discovering");
       console.log(`[SAHA-BLE][CENTRAL] Starting GATT service discovery for device: ${deviceId}`);
       await device.discoverAllServicesAndCharacteristics();
       console.log(`[SAHA-BLE][CENTRAL] GATT service discovery completed for device: ${deviceId}`);
@@ -90,6 +116,7 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
         if (identityChar.value) {
           const identity = decodeBase64(identityChar.value);
           console.log(`[SAHA-BLE][CENTRAL] Read identity from peer: "${identity}"`);
+          peerIdentityRef.current = identity;
           setPeerIdentity(identity);
         }
       } catch (readErr) {
@@ -98,6 +125,7 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
 
       // Subscribe to TX characteristic for incoming Peripheral -> Central notifications
       console.log(`[SAHA-BLE][CENTRAL][TX] Subscribing to TX notifications (${TX_CHARACTERISTIC_UUID})...`);
+      txSubscriptionRef.current?.remove();
       txSubscriptionRef.current = device.monitorCharacteristicForService(
         SAHA_SERVICE_UUID,
         TX_CHARACTERISTIC_UUID,
@@ -110,21 +138,35 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
             console.log("[SAHA-BLE][CENTRAL][TX] Received raw TX notification value (Base64):", characteristic.value);
             const decodedText = decodeBase64(characteristic.value);
             console.log("[SAHA-BLE][CENTRAL][TX] Decoded notification text message:", decodedText);
-            addMessage(decodedText, false, peerIdentity || targetDeviceName || "Peripheral Node");
+            addMessage(decodedText, false, peerIdentityRef.current || deviceName || "Peripheral Node");
           }
         },
       );
       console.log("[SAHA-BLE][CENTRAL][TX] TX notification subscription active");
 
-      setConnectionState("connected");
+      if (connectionAttemptRef.current !== attemptId) {
+        txSubscriptionRef.current?.remove();
+        txSubscriptionRef.current = null;
+        await device.cancelConnection();
+        connectedDeviceRef.current = null;
+        return;
+      }
+
+      updateConnectionState("connected");
       console.log(`[SAHA-BLE][CENTRAL] Chat connection ready with peripheral: ${deviceId}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to connect to BLE device";
       console.log(`[SAHA-BLE][CENTRAL] BLE Connection failed for ${deviceId}: ${msg}`);
-      setErrorMessage(msg);
-      setConnectionState("error");
+      if (connectionAttemptRef.current === attemptId) {
+        setErrorMessage(msg);
+        updateConnectionState("error");
+      }
+    } finally {
+      if (connectionAttemptRef.current === attemptId) {
+        connectionInFlightRef.current = false;
+      }
     }
-  }, [addMessage, peerIdentity, targetDeviceName]);
+  }, [addMessage, updateConnectionState]);
 
   // Handle incoming Peripheral RX write data (Central -> Peripheral)
   useEffect(() => {
@@ -144,14 +186,17 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
 
   // Connect to target device on mount if provided
   useEffect(() => {
+    peerIdentityRef.current = null;
+    setPeerIdentity(null);
+
     if (targetDeviceId) {
-      void connectToPeer(targetDeviceId);
+      void connectToPeer(targetDeviceId, targetDeviceName);
     }
 
     return () => {
       void disconnect();
     };
-  }, [targetDeviceId, connectToPeer, disconnect]);
+  }, [targetDeviceId, targetDeviceName, connectToPeer, disconnect]);
 
   // Send message over BLE
   const sendMessage = useCallback(
@@ -163,7 +208,7 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
       const trimmedText = text.trim();
 
       // If connected as Central to target device (Central -> Peripheral via RX write)
-      if (connectedDeviceRef.current && connectionState === "connected") {
+      if (connectedDeviceRef.current && connectionStateRef.current === "connected") {
         try {
           console.log(`[SAHA-BLE][CENTRAL][RX] Central writing text message to RX characteristic (${RX_CHARACTERISTIC_UUID}): "${trimmedText}"`);
           const base64Payload = encodeBase64(trimmedText);
