@@ -17,6 +17,7 @@ import {
   RX_CHARACTERISTIC_UUID,
   SAHA_SERVICE_UUID,
   TX_CHARACTERISTIC_UUID,
+  SAHA_BLE_CONFIG,
 } from '@/ble/config';
 import { sahaBlePeripheral } from '@/ble/SahaBlePeripheral';
 import type { ChatConnectionState, ChatMessage } from '@/ble/types';
@@ -148,6 +149,12 @@ export function useBleChat(
         console.log(
           `[SAHA-BLE][CENTRAL] BLE connection established with device: ${deviceId}`,
         );
+
+        try {
+          await bleManager.requestMtu(device, SAHA_BLE_CONFIG.requestedMtu);
+        } catch (error) {
+          console.log('[SAHA-BLE][CENTRAL] MTU request skipped', error);
+        }
 
         updateConnectionState('discovering');
         console.log(
@@ -396,6 +403,10 @@ export function useBleChat(
             `[SAHA-BLE][CENTRAL][RX] Central writing text message to RX characteristic (${RX_CHARACTERISTIC_UUID}): "${trimmedText}"`,
           );
           const base64Payload = encodeBase64(encodeMessage(outgoingMessage));
+          if (base64Payload.length > SAHA_BLE_CONFIG.maxTransportPayloadBytes) {
+            addFailedMessage('Message is too large for the current BLE payload limit');
+            return false;
+          }
           console.log(
             `[SAHA-BLE][CENTRAL][RX] Encoded Base64 payload length: ${base64Payload.length}`,
           );
@@ -437,9 +448,13 @@ export function useBleChat(
         console.log(
           `[SAHA-BLE][PERIPHERAL][TX] Peripheral sending TX notification to connected Centrals: "${trimmedText}"`,
         );
-        const success = await sahaBlePeripheral.sendNotification(
-          encodeMessage(outgoingMessage),
-        );
+        const encodedMessage = encodeMessage(outgoingMessage);
+        const encodedPayload = encodeBase64(encodedMessage);
+        if (encodedPayload.length > SAHA_BLE_CONFIG.maxTransportPayloadBytes) {
+          addFailedMessage('Message is too large for the current BLE payload limit');
+          return false;
+        }
+        const success = await sahaBlePeripheral.sendNotification(encodedMessage);
         if (success) {
           console.log(
             '[SAHA-BLE][PERIPHERAL][TX] TX notification delivered successfully',

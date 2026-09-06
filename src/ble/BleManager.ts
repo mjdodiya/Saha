@@ -148,4 +148,8 @@ export const bleManager = {
     await nativeManager.stopDeviceScan();
     log('Scan stopped');
   },
+
+  async requestMtu(device: Device, mtu: number): Promise<Device> {
+    return device.requestMTU(mtu);
+  },
 };
