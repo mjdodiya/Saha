@@ -17,6 +17,7 @@ export type HomeDesignProps = {
   nearbyCount: number;
   messageCount: number;
   totalBleSignals: number;
+  locationLabel: string;
   recentMessages: ChatMessage[];
   connectionLabel: string;
   connectionColor: string;
@@ -32,6 +33,7 @@ export function HomeDesign({
   nearbyCount,
   messageCount,
   totalBleSignals,
+  locationLabel,
   recentMessages,
   connectionLabel,
   connectionColor,
@@ -66,7 +68,9 @@ export function HomeDesign({
           <View
             style={[styles.statusDot, { backgroundColor: connectionColor }]}
           />
-          <Text style={styles.connectionText}>{connectionLabel}</Text>
+          <Text style={[styles.connectionText, { color: connectionColor }]}>
+            {connectionLabel}
+          </Text>
           <Text style={styles.nodeIdentity}>{nodeId}</Text>
         </View>
 
@@ -192,6 +196,18 @@ export function HomeDesign({
         <View style={styles.footerNote}>
           <Text style={styles.footerNumber}>{totalBleSignals}</Text>
           <Text style={styles.footerText}>BLE signals in local range</Text>
+        </View>
+        <View style={styles.locationTag}>
+          <Ionicons
+            name="location-outline"
+            size={13}
+            color="#3159DB"
+          />
+          <Text
+            style={styles.locationText}
+            numberOfLines={1}>
+            {locationLabel}
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -366,5 +382,13 @@ const styles = StyleSheet.create({
   },
   footerNumber: { color: '#3159DB', fontSize: 11, fontWeight: '800' },
   footerText: { color: '#A0A09B', fontSize: 10 },
+  locationTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 12,
+  },
+  locationText: { flexShrink: 1, color: '#8C8E8B', fontSize: 10 },
   pressed: { opacity: 0.65 },
 });

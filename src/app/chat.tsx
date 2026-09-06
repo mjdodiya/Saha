@@ -99,7 +99,6 @@ export default function ChatScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ConversationDesign
         displayName={displayName}
-        nodeId={myNodeId || 'N7'}
         connectionLabel={connectionLabel}
         connectionColor={connectionColor}
         messages={messages}
