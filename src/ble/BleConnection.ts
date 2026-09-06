@@ -7,6 +7,12 @@ import {
 } from "./config";
 import type { ConnectionTestState } from "./types";
 import type { Characteristic, Device, Subscription } from "react-native-ble-plx";
+import {
+  createPing,
+  decodeMessage,
+  encodeMessage,
+  type SahaMessage,
+} from "./SahaProtocol";
 
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -183,6 +189,7 @@ export async function runSahaConnectionTest(
   let txSubscription: Subscription | null = null;
 
   try {
+    logStep("connecting", "Device discovered");
     logStep("connecting", `Connecting to device ${deviceId}...`);
 
     const rawManager = bleManager.getNativeManager();
@@ -196,6 +203,14 @@ export async function runSahaConnectionTest(
     logStep("discovering", "Discovering services and characteristics...");
     await connectedDevice.discoverAllServicesAndCharacteristics();
     logStep("discovering", "Discovered GATT services");
+    const services = await connectedDevice.services();
+    const hasSahaService = services.some(
+      (service) => service.uuid.toLowerCase() === SAHA_SERVICE_UUID.toLowerCase(),
+    );
+    if (!hasSahaService) {
+      throw new Error("SAHA service was not found");
+    }
+    logStep("discovering", "SAHA service found");
 
     logStep("reading_identity", "Reading Identity characteristic...");
     let readIdentity: string | null = null;
@@ -214,12 +229,13 @@ export async function runSahaConnectionTest(
       const msg = readError instanceof Error ? readError.message : "Read error";
       logStep("reading_identity", `Identity read warning: ${msg}`);
     }
+    logStep("reading_identity", "Identity read");
 
     logStep("subscribing_tx", "Subscribing to TX characteristic notifications...");
 
     let receivedNotification: string | null = null;
 
-    const notificationPromise = new Promise<string>((resolve, reject) => {
+    const notificationPromise = new Promise<SahaMessage>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error("Timeout waiting for TX notification (pong)"));
       }, 7000);
@@ -242,29 +258,42 @@ export async function runSahaConnectionTest(
           if (characteristic?.value) {
             const decoded = decodeBase64(characteristic.value);
             clearTimeout(timeout);
-            resolve(decoded);
+            try {
+              resolve(decodeMessage(decoded));
+            } catch (error) {
+              reject(error instanceof Error ? error : new Error("Invalid SAHA response"));
+            }
           }
         },
       );
     });
+    logStep("subscribing_tx", "TX subscribed");
 
-    logStep("writing_ping", 'Writing "ping" to RX characteristic...');
-    const pingBase64 = encodeBase64("ping");
+    const ping = createPing();
+    logStep("writing_ping", `Ping sent (${ping.id})`);
+    const pingBase64 = encodeBase64(encodeMessage(ping));
     await connectedDevice.writeCharacteristicWithResponseForService(
       SAHA_SERVICE_UUID,
       RX_CHARACTERISTIC_UUID,
       pingBase64,
     );
-    logStep("writing_ping", 'Wrote "ping" to RX. Awaiting "pong" notification...');
+    logStep("writing_ping", "Awaiting pong notification...");
 
-    receivedNotification = await notificationPromise;
-    logStep("ping_pong_success", `Received TX notification: "${receivedNotification}"`);
+    const response: SahaMessage = await notificationPromise;
+    if (response.type !== "pong" || response.id !== ping.id) {
+      throw new Error(
+        `Invalid pong response: expected pong ${ping.id}, received ${response.type} ${response.id}`,
+      );
+    }
+    receivedNotification = encodeMessage(response);
+    logStep("ping_pong_success", "Pong received");
 
     // Clean disconnect
     if (txSubscription) {
       (txSubscription as Subscription).remove();
     }
     await connectedDevice.cancelConnection();
+    logStep("ping_pong_success", "Disconnected");
 
     return {
       success: true,
