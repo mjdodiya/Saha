@@ -41,6 +41,12 @@ This command will move the starter code to the **app-example** directory and cre
 - If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
 - Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
 
+## Phase 3 Message Storage
+
+SAHA Phase 3 keeps chat messages in memory for the active app session. This is intentional because the current goal is real-time communication between two nearby devices, and persistence is not required.
+
+Messages are cleared when the chat controller is unmounted or the app restarts. SQLite, AsyncStorage, and a message history backend are not part of the current implementation. Persistent history can be added in a later phase if product requirements call for it.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:
