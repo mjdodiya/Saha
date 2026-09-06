@@ -236,6 +236,11 @@ export function ConversationDesign({
 }
 
 function Bubble({ message }: { message: ChatMessage }) {
+  const time = new Date(message.timestamp).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
   return (
     <View
       style={[
@@ -249,8 +254,18 @@ function Bubble({ message }: { message: ChatMessage }) {
         ]}>
         <Text
           style={[styles.bubbleText, message.isSelf && styles.bubbleTextSelf]}>
-          {message.text}
+          {message.content}
         </Text>
+        <View style={styles.bubbleMeta}>
+          <Text style={[styles.bubbleTime, message.isSelf && styles.bubbleTimeSelf]}>
+            {time}
+          </Text>
+          {message.isSelf && (
+            <Text style={[styles.bubbleStatus, message.isSelf && styles.bubbleTimeSelf]}>
+              {message.status === 'sent' ? 'Delivered locally' : message.status}
+            </Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -363,6 +378,10 @@ const styles = StyleSheet.create({
   bubblePeer: { backgroundColor: '#ECEBE9', borderBottomLeftRadius: 4 },
   bubbleText: { color: '#30363B', fontSize: 12, lineHeight: 17 },
   bubbleTextSelf: { color: '#FFFFFF' },
+  bubbleMeta: { flexDirection: 'row', justifyContent: 'flex-end', gap: 5, marginTop: 4 },
+  bubbleTime: { color: '#979994', fontSize: 8 },
+  bubbleTimeSelf: { color: '#D8E0FF' },
+  bubbleStatus: { fontSize: 8 },
   emptyConversation: {
     alignSelf: 'center',
     color: '#B1B1AC',

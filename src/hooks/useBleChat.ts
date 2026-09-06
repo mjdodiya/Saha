@@ -8,6 +8,11 @@ import type {
 import { decodeBase64, encodeBase64 } from '@/ble/BleConnection';
 import { bleManager } from '@/ble/BleManager';
 import {
+  createChatMessage,
+  decodeMessage,
+  encodeMessage,
+} from '@/ble/SahaProtocol';
+import {
   IDENTITY_CHARACTERISTIC_UUID,
   RX_CHARACTERISTIC_UUID,
   SAHA_SERVICE_UUID,
@@ -32,6 +37,7 @@ export function useBleChat(
   const connectionStateRef = useRef<ChatConnectionState>('disconnected');
   const connectionAttemptRef = useRef(0);
   const connectionInFlightRef = useRef(false);
+  const localNodeIdRef = useRef('UNKNOWN');
 
   const updateConnectionState = useCallback((state: ChatConnectionState) => {
     connectionStateRef.current = state;
@@ -40,17 +46,27 @@ export function useBleChat(
 
   // Helper to add a message to chat history state with debugging log
   const addMessage = useCallback(
-    (text: string, isSelf: boolean, senderLabel?: string) => {
-      const sender = isSelf ? 'Me' : senderLabel || 'Peer';
+    ({ id, senderId, receiverId, content, isSelf, status, timestamp }: {
+      id: string;
+      senderId: string;
+      receiverId: string;
+      content: string;
+      isSelf: boolean;
+      status: ChatMessage['status'];
+      timestamp?: number;
+    }) => {
       console.log(
-        `[SAHA-BLE][CHAT] Adding message to state - Sender: ${sender}, IsSelf: ${isSelf}, Text: "${text}"`,
+        `[SAHA-BLE][CHAT] Adding message to state - Sender: ${senderId}, IsSelf: ${isSelf}, Text: "${content}"`,
       );
       const newMessage: ChatMessage = {
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        senderId: sender,
-        text,
-        timestamp: Date.now(),
+        id,
+        senderId,
+        receiverId,
+        content,
+        text: content,
+        timestamp: timestamp ?? Date.now(),
         isSelf,
+        status,
       };
       setMessages((prev) => [...prev, newMessage]);
     },
@@ -93,6 +109,8 @@ export function useBleChat(
       const attemptId = connectionAttemptRef.current + 1;
       connectionAttemptRef.current = attemptId;
       connectionInFlightRef.current = true;
+      peerIdentityRef.current = null;
+      setPeerIdentity(null);
       setErrorMessage(null);
       updateConnectionState('connecting');
       console.log(
@@ -178,14 +196,22 @@ export function useBleChat(
                 characteristic.value,
               );
               const decodedText = decodeBase64(characteristic.value);
+              const protocolMessage = decodeMessage(decodedText);
+              if (protocolMessage.type !== 'message') return;
               console.log(
                 '[SAHA-BLE][CENTRAL][TX] Decoded notification text message:',
-                decodedText,
+                protocolMessage.payload,
               );
               addMessage(
-                decodedText,
-                false,
-                peerIdentityRef.current || deviceName || 'Peripheral Node',
+                {
+                  id: protocolMessage.id,
+                  senderId: protocolMessage.senderId,
+                  receiverId: localNodeIdRef.current,
+                  content: protocolMessage.payload,
+                  isSelf: false,
+                  status: 'received',
+                  timestamp: protocolMessage.timestamp * 1000,
+                },
               );
             }
           },
@@ -238,11 +264,21 @@ export function useBleChat(
         console.log(
           `[SAHA-BLE][PERIPHERAL][CHAT] Forwarding RX payload to React Native chat state: "${event.payload}"`,
         );
-        addMessage(
-          event.payload,
-          false,
-          `Central (${event.deviceId.slice(-4)})`,
-        );
+        try {
+          const protocolMessage = decodeMessage(event.payload);
+          if (protocolMessage.type !== 'message') return;
+          addMessage({
+            id: protocolMessage.id,
+            senderId: protocolMessage.senderId || `Central (${event.deviceId.slice(-4)})`,
+            receiverId: localNodeIdRef.current,
+            content: protocolMessage.payload,
+            isSelf: false,
+            status: 'received',
+            timestamp: protocolMessage.timestamp * 1000,
+          });
+        } catch (error) {
+          console.log('[SAHA-BLE][PERIPHERAL][RX] Invalid protocol message', error);
+        }
       }
     });
 
@@ -251,16 +287,24 @@ export function useBleChat(
     };
   }, [addMessage]);
 
+  useEffect(() => {
+    void sahaBlePeripheral.getNodeId().then((nodeId) => {
+      localNodeIdRef.current = nodeId;
+    });
+  }, []);
+
   // Connect to target device on mount if provided
   useEffect(() => {
-    peerIdentityRef.current = null;
-    setPeerIdentity(null);
+    let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
     if (targetDeviceId) {
-      void connectToPeer(targetDeviceId, targetDeviceName);
+      connectTimer = setTimeout(() => {
+        void connectToPeer(targetDeviceId, targetDeviceName);
+      }, 0);
     }
 
     return () => {
+      if (connectTimer) clearTimeout(connectTimer);
       void disconnect();
     };
   }, [targetDeviceId, targetDeviceName, connectToPeer, disconnect]);
@@ -283,7 +327,13 @@ export function useBleChat(
           console.log(
             `[SAHA-BLE][CENTRAL][RX] Central writing text message to RX characteristic (${RX_CHARACTERISTIC_UUID}): "${trimmedText}"`,
           );
-          const base64Payload = encodeBase64(trimmedText);
+          const outgoingMessage = createChatMessage(
+            localNodeIdRef.current,
+            trimmedText,
+            undefined,
+            Math.floor(Date.now() / 1000),
+          );
+          const base64Payload = encodeBase64(encodeMessage(outgoingMessage));
           console.log(
             `[SAHA-BLE][CENTRAL][RX] Encoded Base64 payload length: ${base64Payload.length}`,
           );
@@ -296,7 +346,15 @@ export function useBleChat(
           console.log(
             '[SAHA-BLE][CENTRAL][RX] RX characteristic write completed successfully',
           );
-          addMessage(trimmedText, true);
+          addMessage({
+            id: outgoingMessage.id,
+            senderId: outgoingMessage.senderId,
+            receiverId: peerIdentityRef.current || targetDeviceName || targetDeviceId || 'peer',
+            content: outgoingMessage.payload,
+            isSelf: true,
+            status: 'sent',
+            timestamp: outgoingMessage.timestamp * 1000,
+          });
           return true;
         } catch (err) {
           const msg =
@@ -312,12 +370,26 @@ export function useBleChat(
         console.log(
           `[SAHA-BLE][PERIPHERAL][TX] Peripheral sending TX notification to connected Centrals: "${trimmedText}"`,
         );
-        const success = await sahaBlePeripheral.sendNotification(trimmedText);
+        const outgoingMessage = createChatMessage(
+          localNodeIdRef.current,
+          trimmedText,
+        );
+        const success = await sahaBlePeripheral.sendNotification(
+          encodeMessage(outgoingMessage),
+        );
         if (success) {
           console.log(
             '[SAHA-BLE][PERIPHERAL][TX] TX notification delivered successfully',
           );
-          addMessage(trimmedText, true);
+          addMessage({
+            id: outgoingMessage.id,
+            senderId: outgoingMessage.senderId,
+            receiverId: targetDeviceId || 'connected-peer',
+            content: outgoingMessage.payload,
+            isSelf: true,
+            status: 'sent',
+            timestamp: outgoingMessage.timestamp * 1000,
+          });
           return true;
         } else {
           console.log(
@@ -336,7 +408,7 @@ export function useBleChat(
       setErrorMessage('No active BLE connection to send message');
       return false;
     },
-    [connectionState, addMessage],
+    [addMessage, targetDeviceId, targetDeviceName],
   );
 
   return {

@@ -54,9 +54,12 @@ export type ConnectionTestState =
 export type ChatMessage = {
   id: string;
   senderId: string;
+  receiverId: string;
+  content: string;
   text: string;
   timestamp: number;
   isSelf: boolean;
+  status: 'sending' | 'sent' | 'received' | 'failed';
 };
 
 export type ChatConnectionState =
