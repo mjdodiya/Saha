@@ -1,14 +1,21 @@
-import { useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 
-import { ConversationDesign, MessagesDesign, type ConversationPreview } from '@/design/ChatDesign';
+import {
+  ConversationDesign,
+  MessagesDesign,
+  type ConversationPreview,
+} from '@/design/ChatDesign';
 import { useBleChat } from '@/hooks/useBleChat';
 import { useBlePeripheral } from '@/hooks/useBlePeripheral';
 import { useBleScanner } from '@/hooks/useBleScanner';
 
 export default function ChatScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ deviceId?: string; deviceName?: string }>();
+  const params = useLocalSearchParams<{
+    deviceId?: string;
+    deviceName?: string;
+  }>();
   const targetDeviceId = params.deviceId ?? null;
   const targetDeviceName = params.deviceName ?? null;
   const { devices } = useBleScanner();
@@ -26,7 +33,10 @@ export default function ChatScreen() {
 
   const displayName = peerIdentity
     ? `Node ${peerIdentity}`
-    : targetDeviceName || (targetDeviceId ? `Device (${targetDeviceId.slice(-5)})` : 'SAHA Broadcast');
+    : targetDeviceName ||
+      (targetDeviceId
+        ? `Device (${targetDeviceId.slice(-5)})`
+        : 'SAHA Broadcast');
 
   const handleSend = async () => {
     if (!inputText.trim() || isSending) return;
@@ -39,20 +49,25 @@ export default function ChatScreen() {
 
   if (!targetDeviceId) {
     const conversations: ConversationPreview[] = devices.map((device) => {
-      const deviceMessage = messages.find((message) => message.senderId.includes(device.id.slice(-4)));
+      const deviceMessage = messages.find((message) =>
+        message.senderId.includes(device.id.slice(-4)),
+      );
       return {
         id: device.id,
         name: device.name ?? (device.isSahaDevice ? 'SAHA Node' : 'BLE Device'),
         preview: deviceMessage?.text ?? 'Start a conversation',
         time: deviceMessage ? formatTime(deviceMessage.timestamp) : 'now',
         isActive: device.isSahaDevice,
-        onPress: () => router.push({
-          pathname: '/chat',
-          params: {
-            deviceId: device.id,
-            deviceName: device.name ?? (device.isSahaDevice ? 'SAHA Node' : 'BLE Device'),
-          },
-        }),
+        onPress: () =>
+          router.push({
+            pathname: '/chat',
+            params: {
+              deviceId: device.id,
+              deviceName:
+                device.name ??
+                (device.isSahaDevice ? 'SAHA Node' : 'BLE Device'),
+            },
+          }),
       };
     });
 
@@ -64,18 +79,20 @@ export default function ChatScreen() {
     );
   }
 
-  const connectionLabel = connectionState === 'connected'
-    ? `Connected as ${myNodeId || 'Me'}`
-    : connectionState === 'connecting'
-      ? 'Connecting'
-      : connectionState === 'discovering'
-        ? 'Discovering'
-        : 'Available';
-  const connectionColor = connectionState === 'connected'
-    ? '#19B66A'
-    : connectionState === 'error'
-      ? '#D94B4B'
-      : '#E5A526';
+  const connectionLabel =
+    connectionState === 'connected'
+      ? `Connected as ${myNodeId || 'Me'}`
+      : connectionState === 'connecting'
+        ? 'Connecting'
+        : connectionState === 'discovering'
+          ? 'Discovering'
+          : 'Available';
+  const connectionColor =
+    connectionState === 'connected'
+      ? '#19B66A'
+      : connectionState === 'error'
+        ? '#D94B4B'
+        : '#E5A526';
 
   return (
     <>
@@ -88,7 +105,9 @@ export default function ChatScreen() {
         messages={messages}
         inputText={inputText}
         isSending={isSending}
-        isConnecting={connectionState === 'connecting' || connectionState === 'discovering'}
+        isConnecting={
+          connectionState === 'connecting' || connectionState === 'discovering'
+        }
         errorMessage={errorMessage}
         onBack={() => router.back()}
         onDisconnect={() => void disconnect()}
@@ -100,5 +119,8 @@ export default function ChatScreen() {
 }
 
 function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

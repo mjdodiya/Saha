@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import type { ComponentProps } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -36,11 +36,41 @@ export function SettingsDesign({
   onAboutPress,
 }: SettingsDesignProps) {
   const items: SettingsItem[] = [
-    { label: 'Bluetooth', icon: 'bluetooth', color: iconColors.bluetooth, backgroundColor: '#DCE4FF', onPress: onBluetoothPress },
-    { label: 'Nearby visibility', icon: 'eye', color: iconColors.eye, backgroundColor: '#D5EFF3', onPress: onNearbyVisibilityPress },
-    { label: 'Notifications', icon: 'notifications', color: iconColors.notifications, backgroundColor: '#E9DFFF', onPress: onNotificationsPress },
-    { label: 'Privacy', icon: 'lock-closed-outline', color: iconColors.lock, backgroundColor: '#D5EFE5', onPress: onPrivacyPress },
-    { label: 'About SAHA', icon: 'information-circle-outline', color: iconColors.info, backgroundColor: '#E2E2E0', onPress: onAboutPress },
+    {
+      label: 'Bluetooth',
+      icon: 'bluetooth',
+      color: iconColors.bluetooth,
+      backgroundColor: '#DCE4FF',
+      onPress: onBluetoothPress,
+    },
+    {
+      label: 'Nearby visibility',
+      icon: 'eye',
+      color: iconColors.eye,
+      backgroundColor: '#D5EFF3',
+      onPress: onNearbyVisibilityPress,
+    },
+    {
+      label: 'Notifications',
+      icon: 'notifications',
+      color: iconColors.notifications,
+      backgroundColor: '#E9DFFF',
+      onPress: onNotificationsPress,
+    },
+    {
+      label: 'Privacy',
+      icon: 'lock-closed-outline',
+      color: iconColors.lock,
+      backgroundColor: '#D5EFE5',
+      onPress: onPrivacyPress,
+    },
+    {
+      label: 'About SAHA',
+      icon: 'information-circle-outline',
+      color: iconColors.info,
+      backgroundColor: '#E2E2E0',
+      onPress: onAboutPress,
+    },
   ];
 
   return (
@@ -55,13 +85,24 @@ export function SettingsDesign({
               accessibilityRole="button"
               accessibilityLabel={item.label}
               onPress={item.onPress}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-            >
-              <View style={[styles.iconBox, { backgroundColor: item.backgroundColor }]}>
-                <Ionicons name={item.icon} size={15} color={item.color} />
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+              <View
+                style={[
+                  styles.iconBox,
+                  { backgroundColor: item.backgroundColor },
+                ]}>
+                <Ionicons
+                  name={item.icon}
+                  size={15}
+                  color={item.color}
+                />
               </View>
               <Text style={styles.label}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={15} color="#C4C4C0" />
+              <Ionicons
+                name="chevron-forward"
+                size={15}
+                color="#C4C4C0"
+              />
             </Pressable>
           ))}
         </View>
@@ -74,11 +115,39 @@ export function SettingsDesign({
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F7F6F2' },
   content: { flex: 1, paddingHorizontal: 34, paddingTop: 22 },
-  title: { color: '#111820', fontSize: 24, fontWeight: '500', marginBottom: 20 },
-  settingsList: { overflow: 'hidden', borderRadius: 13, paddingVertical: 4, backgroundColor: '#ECEBE9' },
-  row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 11 },
-  iconBox: { width: 27, height: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  title: {
+    color: '#111820',
+    fontSize: 24,
+    fontWeight: '500',
+    marginBottom: 20,
+  },
+  settingsList: {
+    overflow: 'hidden',
+    borderRadius: 13,
+    paddingVertical: 4,
+    backgroundColor: '#ECEBE9',
+  },
+  row: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 11,
+  },
+  iconBox: {
+    width: 27,
+    height: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
   label: { flex: 1, color: '#18212A', fontSize: 11 },
-  version: { marginTop: 29, color: '#C0C0BB', fontFamily: 'monospace', fontSize: 9, textAlign: 'center' },
+  version: {
+    marginTop: 29,
+    color: '#C0C0BB',
+    fontFamily: 'monospace',
+    fontSize: 9,
+    textAlign: 'center',
+  },
   pressed: { opacity: 0.65 },
 });

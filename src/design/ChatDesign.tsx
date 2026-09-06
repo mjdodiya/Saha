@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { ChatMessage, DiscoveredDevice } from '@/ble/types';
+import type { ChatMessage } from '@/ble/types';
 
 export type ConversationPreview = {
   id: string;
@@ -14,35 +16,37 @@ export type ConversationPreview = {
 
 export function MessagesDesign({ conversations }: { conversations: ConversationPreview[] }) {
   return (
-    <View style={styles.screen}>
-      <Text style={styles.inboxTitle}>Messages</Text>
-      <View style={styles.conversationList}>
-        {conversations.length > 0 ? conversations.map((conversation) => (
-          <Pressable key={conversation.id} onPress={conversation.onPress} style={({ pressed }) => [styles.previewRow, pressed && styles.pressed]}>
-            <View style={[styles.previewIcon, conversation.isActive && styles.previewIconActive]}>
-              <Ionicons name="bluetooth" size={16} color={conversation.isActive ? '#3159DB' : '#B5B5B1'} />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <View style={styles.inboxScreen}>
+        <Text style={styles.inboxTitle}>Messages</Text>
+        <View style={styles.conversationList}>
+          {conversations.length > 0 ? conversations.map((conversation) => (
+            <Pressable key={conversation.id} onPress={conversation.onPress} style={({ pressed }) => [styles.previewRow, pressed && styles.pressed]}>
+              <View style={[styles.previewIcon, conversation.isActive && styles.previewIconActive]}>
+                <Ionicons name="bluetooth" size={16} color={conversation.isActive ? '#3159DB' : '#B5B5B1'} />
+              </View>
+              <View style={styles.previewCopy}>
+                <Text style={styles.previewName}>{conversation.name}</Text>
+                <Text style={styles.previewText} numberOfLines={1}>{conversation.preview}</Text>
+              </View>
+              <Text style={styles.previewTime}>{conversation.time}</Text>
+            </Pressable>
+          )) : (
+            <View style={styles.emptyInbox}>
+              <Ionicons name="chatbubbles-outline" size={25} color="#3159DB" />
+              <Text style={styles.emptyTitle}>No messages yet</Text>
+              <Text style={styles.emptyText}>Connect to a nearby node to start chatting.</Text>
             </View>
-            <View style={styles.previewCopy}>
-              <Text style={styles.previewName}>{conversation.name}</Text>
-              <Text style={styles.previewText} numberOfLines={1}>{conversation.preview}</Text>
-            </View>
-            <Text style={styles.previewTime}>{conversation.time}</Text>
-          </Pressable>
-        )) : (
-          <View style={styles.emptyInbox}>
-            <Ionicons name="chatbubbles-outline" size={25} color="#3159DB" />
-            <Text style={styles.emptyTitle}>No messages yet</Text>
-            <Text style={styles.emptyText}>Connect to a nearby node to start chatting.</Text>
-          </View>
-        )}
+          )}
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 export type ConversationDesignProps = {
   displayName: string;
-  nodeId: string;
   connectionLabel: string;
   connectionColor: string;
   messages: ChatMessage[];
@@ -56,97 +60,54 @@ export type ConversationDesignProps = {
   onSend: () => void;
 };
 
-export function ConversationDesign({
-  displayName,
-  nodeId,
-  connectionLabel,
-  connectionColor,
-  messages,
-  inputText,
-  isSending,
-  isConnecting,
-  errorMessage,
-  onBack,
-  onDisconnect,
-  onInputChange,
-  onSend,
-}: ConversationDesignProps) {
+export function ConversationDesign({ displayName, connectionLabel, connectionColor, messages, inputText, isSending, isConnecting, errorMessage, onBack, onDisconnect, onInputChange, onSend }: ConversationDesignProps) {
   return (
-    <KeyboardAvoidingView style={styles.conversationScreen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.conversationHeader}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
-          <Ionicons name="chevron-back" size={20} color="#3159DB" />
-        </Pressable>
-        <View style={styles.conversationIdentity}>
-          <Text style={styles.conversationName} numberOfLines={1}>{displayName}</Text>
-          <View style={styles.connectionRow}>
-            <View style={[styles.connectionDot, { backgroundColor: connectionColor }]} />
-            <Text style={styles.connectionText}>{connectionLabel} via Bluetooth</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <KeyboardAvoidingView style={styles.conversationScreen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.conversationHeader}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
+            <Ionicons name="chevron-back" size={20} color="#3159DB" />
+          </Pressable>
+          <View style={styles.conversationIdentity}>
+            <Text style={styles.conversationName} numberOfLines={1}>{displayName}</Text>
+            <View style={styles.connectionRow}>
+              <View style={[styles.connectionDot, { backgroundColor: connectionColor }]} />
+              <Text style={styles.connectionText}>{connectionLabel} via Bluetooth</Text>
+            </View>
           </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Disconnect" onPress={onDisconnect} style={styles.moreButton}>
+            <Ionicons name="ellipsis-vertical" size={17} color="#A0A09B" />
+          </Pressable>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Disconnect" onPress={onDisconnect} style={styles.moreButton}>
-          <Ionicons name="ellipsis-vertical" size={17} color="#A0A09B" />
-        </Pressable>
-      </View>
-
-      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-      {isConnecting && <View style={styles.connectingRow}><ActivityIndicator color="#3159DB" /><Text style={styles.connectingText}>Connecting to {displayName}...</Text></View>}
-
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messagesList}
-        renderItem={({ item }) => <Bubble message={item} />}
-        ListEmptyComponent={<Text style={styles.emptyConversation}>Messages sent over the local SAHA network appear here.</Text>}
-      />
-
-      <View style={styles.encryptionNote}><Ionicons name="lock-closed-outline" size={10} color="#B1B1AC" /><Text style={styles.encryptionText}>Delivered locally · end-to-end encrypted</Text></View>
-      <View style={styles.composerRow}>
-        <TextInput
-          value={inputText}
-          onChangeText={onInputChange}
-          onSubmitEditing={onSend}
-          editable={!isSending}
-          returnKeyType="send"
-          placeholder="Type a message..."
-          placeholderTextColor="#B0B0AB"
-          style={styles.composer}
+        {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+        {isConnecting && <View style={styles.connectingRow}><ActivityIndicator color="#3159DB" /><Text style={styles.connectingText}>Connecting to {displayName}...</Text></View>}
+        <FlatList
+          data={messages}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messagesList}
+          renderItem={({ item }) => <Bubble message={item} />}
+          ListEmptyComponent={<Text style={styles.emptyConversation}>Messages sent over the local SAHA network appear here.</Text>}
         />
-        <Pressable accessibilityRole="button" accessibilityLabel="Send message" onPress={onSend} disabled={!inputText.trim() || isSending} style={({ pressed }) => [styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled, pressed && styles.pressed]}>
-          {isSending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="paper-plane" size={15} color="#FFFFFF" />}
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+        <View style={styles.encryptionNote}><Ionicons name="lock-closed-outline" size={10} color="#B1B1AC" /><Text style={styles.encryptionText}>Delivered locally · end-to-end encrypted</Text></View>
+        <View style={styles.composerRow}>
+          <TextInput value={inputText} onChangeText={onInputChange} onSubmitEditing={onSend} editable={!isSending} returnKeyType="send" placeholder="Type a message..." placeholderTextColor="#B0B0AB" style={styles.composer} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Send message" onPress={onSend} disabled={!inputText.trim() || isSending} style={({ pressed }) => [styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled, pressed && styles.pressed]}>
+            {isSending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="paper-plane" size={15} color="#FFFFFF" />}
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 function Bubble({ message }: { message: ChatMessage }) {
-  return (
-    <View style={[styles.bubbleRow, message.isSelf ? styles.bubbleRowSelf : styles.bubbleRowPeer]}>
-      <View style={[styles.bubble, message.isSelf ? styles.bubbleSelf : styles.bubblePeer]}>
-        <Text style={[styles.bubbleText, message.isSelf && styles.bubbleTextSelf]}>{message.text}</Text>
-      </View>
-    </View>
-  );
-}
-
-export function createConversationPreview(device: DiscoveredDevice, message?: ChatMessage): ConversationPreview {
-  return {
-    id: device.id,
-    name: device.name ?? (device.isSahaDevice ? 'SAHA Node' : 'BLE Device'),
-    preview: message?.text ?? 'Start a conversation',
-    time: message ? formatTime(message.timestamp) : 'now',
-    isActive: device.isSahaDevice,
-    onPress: () => undefined,
-  };
-}
-
-function formatTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return <View style={[styles.bubbleRow, message.isSelf ? styles.bubbleRowSelf : styles.bubbleRowPeer]}><View style={[styles.bubble, message.isSelf ? styles.bubbleSelf : styles.bubblePeer]}><Text style={[styles.bubbleText, message.isSelf && styles.bubbleTextSelf]}>{message.text}</Text></View></View>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F7F6F2', paddingHorizontal: 34, paddingTop: 22 },
+  safeArea: { flex: 1, backgroundColor: '#F7F6F2' },
+  inboxScreen: { flex: 1, paddingHorizontal: 34, paddingTop: 22 },
   inboxTitle: { color: '#111820', fontSize: 24, fontWeight: '500', marginBottom: 20 },
   conversationList: { overflow: 'hidden', borderRadius: 13, backgroundColor: '#ECEBE9' },
   previewRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 10 },
