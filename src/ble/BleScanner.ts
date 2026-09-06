@@ -2,7 +2,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import type { Device, Subscription } from 'react-native-ble-plx';
 
 import { bleManager } from './BleManager';
-import { SAHA_BLE_CONFIG } from './config';
+import { SAHA_BLE_CONFIG, SAHA_SERVICE_UUID } from './config';
 import type {
   BleScanResult,
   BleScannerStatus,
@@ -42,7 +42,7 @@ function isSahaCompatibleDevice(device: Device) {
   const serviceUuids = device.serviceUUIDs ?? [];
   const hasSahaService = serviceUuids
     .map(normalizeUuid)
-    .includes(normalizeUuid(SAHA_BLE_CONFIG.serviceUuid));
+    .includes(normalizeUuid(SAHA_SERVICE_UUID));
 
   return hasSahaName || hasSahaService;
 }

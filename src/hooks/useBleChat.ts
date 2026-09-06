@@ -3,7 +3,12 @@ import type { Characteristic, Device, Subscription } from "react-native-ble-plx"
 
 import { bleManager } from "@/ble/BleManager";
 import { decodeBase64, encodeBase64 } from "@/ble/BleConnection";
-import { SAHA_BLE_CONFIG } from "@/ble/config";
+import {
+  IDENTITY_CHARACTERISTIC_UUID,
+  RX_CHARACTERISTIC_UUID,
+  SAHA_SERVICE_UUID,
+  TX_CHARACTERISTIC_UUID,
+} from "@/ble/config";
 import { sahaBlePeripheral } from "@/ble/SahaBlePeripheral";
 import type { ChatConnectionState, ChatMessage } from "@/ble/types";
 
@@ -77,10 +82,10 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
 
       // Read identity characteristic if available
       try {
-        console.log(`[SAHA-BLE][CENTRAL] Reading Identity characteristic (${SAHA_BLE_CONFIG.identityUuid})...`);
+        console.log(`[SAHA-BLE][CENTRAL] Reading Identity characteristic (${IDENTITY_CHARACTERISTIC_UUID})...`);
         const identityChar: Characteristic = await device.readCharacteristicForService(
-          SAHA_BLE_CONFIG.serviceUuid,
-          SAHA_BLE_CONFIG.identityUuid,
+          SAHA_SERVICE_UUID,
+          IDENTITY_CHARACTERISTIC_UUID,
         );
         if (identityChar.value) {
           const identity = decodeBase64(identityChar.value);
@@ -92,10 +97,10 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
       }
 
       // Subscribe to TX characteristic for incoming Peripheral -> Central notifications
-      console.log(`[SAHA-BLE][CENTRAL][TX] Subscribing to TX notifications (${SAHA_BLE_CONFIG.txUuid})...`);
+      console.log(`[SAHA-BLE][CENTRAL][TX] Subscribing to TX notifications (${TX_CHARACTERISTIC_UUID})...`);
       txSubscriptionRef.current = device.monitorCharacteristicForService(
-        SAHA_BLE_CONFIG.serviceUuid,
-        SAHA_BLE_CONFIG.txUuid,
+        SAHA_SERVICE_UUID,
+        TX_CHARACTERISTIC_UUID,
         (error, characteristic) => {
           if (error) {
             console.log("[SAHA-BLE][CENTRAL][TX] Notification subscription error:", error.message);
@@ -160,13 +165,13 @@ export function useBleChat(targetDeviceId?: string | null, targetDeviceName?: st
       // If connected as Central to target device (Central -> Peripheral via RX write)
       if (connectedDeviceRef.current && connectionState === "connected") {
         try {
-          console.log(`[SAHA-BLE][CENTRAL][RX] Central writing text message to RX characteristic (${SAHA_BLE_CONFIG.rxUuid}): "${trimmedText}"`);
+          console.log(`[SAHA-BLE][CENTRAL][RX] Central writing text message to RX characteristic (${RX_CHARACTERISTIC_UUID}): "${trimmedText}"`);
           const base64Payload = encodeBase64(trimmedText);
           console.log(`[SAHA-BLE][CENTRAL][RX] Encoded Base64 payload length: ${base64Payload.length}`);
           
           await connectedDeviceRef.current.writeCharacteristicWithResponseForService(
-            SAHA_BLE_CONFIG.serviceUuid,
-            SAHA_BLE_CONFIG.rxUuid,
+            SAHA_SERVICE_UUID,
+            RX_CHARACTERISTIC_UUID,
             base64Payload,
           );
           console.log("[SAHA-BLE][CENTRAL][RX] RX characteristic write completed successfully");

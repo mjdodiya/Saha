@@ -1,5 +1,10 @@
 import { bleManager } from "./BleManager";
-import { SAHA_BLE_CONFIG } from "./config";
+import {
+  IDENTITY_CHARACTERISTIC_UUID,
+  RX_CHARACTERISTIC_UUID,
+  SAHA_SERVICE_UUID,
+  TX_CHARACTERISTIC_UUID,
+} from "./config";
 import type { ConnectionTestState } from "./types";
 import type { Characteristic, Device, Subscription } from "react-native-ble-plx";
 
@@ -105,8 +110,8 @@ export async function runSahaConnectionTest(
     let readIdentity: string | null = null;
     try {
       const identityChar: Characteristic = await connectedDevice.readCharacteristicForService(
-        SAHA_BLE_CONFIG.serviceUuid,
-        SAHA_BLE_CONFIG.identityUuid,
+        SAHA_SERVICE_UUID,
+        IDENTITY_CHARACTERISTIC_UUID,
       );
       if (identityChar.value) {
         readIdentity = decodeBase64(identityChar.value);
@@ -135,8 +140,8 @@ export async function runSahaConnectionTest(
       }
 
       txSubscription = connectedDevice.monitorCharacteristicForService(
-        SAHA_BLE_CONFIG.serviceUuid,
-        SAHA_BLE_CONFIG.txUuid,
+        SAHA_SERVICE_UUID,
+        TX_CHARACTERISTIC_UUID,
         (error, characteristic) => {
           if (error) {
             clearTimeout(timeout);
@@ -155,8 +160,8 @@ export async function runSahaConnectionTest(
     logStep("writing_ping", 'Writing "ping" to RX characteristic...');
     const pingBase64 = encodeBase64("ping");
     await connectedDevice.writeCharacteristicWithResponseForService(
-      SAHA_BLE_CONFIG.serviceUuid,
-      SAHA_BLE_CONFIG.rxUuid,
+      SAHA_SERVICE_UUID,
+      RX_CHARACTERISTIC_UUID,
       pingBase64,
     );
     logStep("writing_ping", 'Wrote "ping" to RX. Awaiting "pong" notification...');
