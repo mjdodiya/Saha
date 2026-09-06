@@ -40,7 +40,10 @@ export default function HomeScreen() {
   );
 }
 
-function getConnectionStatus(peripheralStatus: PeripheralStatus, isScanning: boolean) {
+function getConnectionStatus(
+  peripheralStatus: PeripheralStatus,
+  isScanning: boolean,
+) {
   if (isScanning) return { label: 'Scanning', color: '#3159DB' };
   if (peripheralStatus === 'Advertising' || peripheralStatus === 'Connected') {
     return { label: 'Connected', color: '#1AB66A' };

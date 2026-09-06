@@ -20,8 +20,8 @@ type TabBarProps = {
 };
 
 const tabDesign = {
-  index: { label: 'Home', icon: '⌂' },
-  nearby: { label: 'Nearby', icon: '⌁' },
+  index: { label: 'Home', icon: 'Home' },
+  nearby: { label: 'Nearby', icon: 'connnec' },
   chat: { label: 'Messages', icon: '□' },
   settings: { label: 'Settings', icon: '⚙' },
 } as const;
