@@ -1,3 +1,5 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 type TabRoute = {
@@ -20,11 +22,13 @@ type TabBarProps = {
 };
 
 const tabDesign = {
-  index: { label: 'Home', icon: 'Home' },
-  nearby: { label: 'Nearby', icon: 'connnec' },
-  chat: { label: 'Messages', icon: '□' },
-  settings: { label: 'Settings', icon: '⚙' },
+  index: { label: 'Home', icon: 'home-outline' },
+  nearby: { label: 'Nearby', icon: 'bluetooth-outline' },
+  chat: { label: 'Messages', icon: 'chatbubble-ellipses-outline' },
+  settings: { label: 'Settings', icon: 'settings-outline' },
 } as const;
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export function SahaTabBar({ state, navigation, insets }: TabBarProps) {
   return (
@@ -55,9 +59,11 @@ export function SahaTabBar({ state, navigation, insets }: TabBarProps) {
             onPress={onPress}
             style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
             <View style={[styles.iconWrap, isFocused && styles.iconWrapActive]}>
-              <Text style={[styles.icon, isFocused && styles.iconActive]}>
-                {design.icon}
-              </Text>
+              <Ionicons
+                name={design.icon as IconName}
+                size={21}
+                color={isFocused ? '#167A51' : '#9B9A91'}
+              />
             </View>
             <Text style={[styles.label, isFocused && styles.labelActive]}>
               {design.label}
@@ -97,14 +103,6 @@ const styles = StyleSheet.create({
   },
   iconWrapActive: {
     backgroundColor: '#E8F4EE',
-  },
-  icon: {
-    color: '#9B9A91',
-    fontSize: 22,
-    lineHeight: 24,
-  },
-  iconActive: {
-    color: '#167A51',
   },
   label: {
     color: '#9B9A91',

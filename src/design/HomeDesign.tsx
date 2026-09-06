@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   ActivityIndicator,
   Pressable,
@@ -53,7 +54,7 @@ export function HomeDesign({
             accessibilityLabel="Bluetooth connection status"
             onPress={onOpenNearby}
             style={styles.bluetoothButton}>
-            <Text style={styles.bluetoothIcon}>⌁</Text>
+            <Ionicons name="bluetooth" size={17} color="#A3A39E" />
           </Pressable>
         </View>
 
@@ -95,9 +96,11 @@ export function HomeDesign({
                     styles.messageIcon,
                     message.isSelf && styles.messageIconSelf,
                   ]}>
-                  <Text style={styles.messageIconText}>
-                    {message.isSelf ? '↑' : '□'}
-                  </Text>
+                  <Ionicons
+                    name={message.isSelf ? 'arrow-up' : 'chatbubble-outline'}
+                    size={15}
+                    color="#5270DC"
+                  />
                 </View>
                 <View style={styles.messageCopy}>
                   <Text
@@ -124,7 +127,7 @@ export function HomeDesign({
                 pressed && styles.pressed,
               ]}>
               <View style={styles.messageIcon}>
-                <Text style={styles.messageIconText}>□</Text>
+                <Ionicons name="chatbubble-outline" size={15} color="#5270DC" />
               </View>
               <View style={styles.messageCopy}>
                 <Text style={styles.messageSender}>No recent messages</Text>
@@ -144,19 +147,19 @@ export function HomeDesign({
               isScanning ? (
                 <ActivityIndicator color="#3159DB" />
               ) : (
-                <Text style={styles.quickIcon}>⌁</Text>
+                <Ionicons name="bluetooth-outline" size={20} color="#3159DB" />
               )
             }
             label={isScanning ? 'Scanning' : 'Nearby'}
             onPress={onStartNearbyScan}
           />
           <QuickAction
-            icon={<Text style={styles.quickIcon}>□</Text>}
+            icon={<Ionicons name="chatbubble-ellipses-outline" size={20} color="#3159DB" />}
             label="Messages"
             onPress={onOpenMessages}
           />
           <QuickAction
-            icon={<Text style={styles.quickIcon}>⌑</Text>}
+            icon={<Ionicons name="medical-outline" size={20} color="#3159DB" />}
             label="Diagnose"
             onPress={onDiagnose}
           />
@@ -254,7 +257,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#ECEBE7',
   },
-  bluetoothIcon: { color: '#A3A39E', fontSize: 21, lineHeight: 23 },
   connectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -317,7 +319,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E1E5',
   },
   messageIconSelf: { backgroundColor: '#DCE4FF' },
-  messageIconText: { color: '#5270DC', fontSize: 17 },
   messageCopy: { flex: 1 },
   messageSender: { color: '#1E2730', fontSize: 10, fontWeight: '800' },
   messagePreview: { marginTop: 3, color: '#656A6E', fontSize: 10 },
@@ -331,7 +332,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#ECEBE9',
   },
-  quickIcon: { color: '#3159DB', fontSize: 20, lineHeight: 22 },
   quickLabel: { marginTop: 5, color: '#767A7B', fontSize: 10 },
   footerNote: {
     flexDirection: 'row',
