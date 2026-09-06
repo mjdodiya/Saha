@@ -135,5 +135,5 @@ function formatLocationLabel(
   const locality = address.city || address.subregion || address.region;
   const label = [street, locality].filter(Boolean).join(', ');
 
-  return label || address.name || address.country || 'Current location';
+  return label || address.name || address.country || 'Current location ';
 }
