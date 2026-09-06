@@ -9,7 +9,7 @@ import type {
 
 export function useBleScanner() {
   const [bluetoothState, setBluetoothState] =
-    useState<BluetoothState>("Unknown");
+    useState<BluetoothState>("Unknown" as BluetoothState);
   const [status, setStatus] = useState<BleScannerStatus>("idle");
   const [devices, setDevices] = useState<DiscoveredDevice[]>([]);
   const [totalDeviceCount, setTotalDeviceCount] = useState(0);

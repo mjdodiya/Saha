@@ -1,5 +1,8 @@
-import { Stack } from "expo-router";
+import { useEffect, useState } from "react";
+import { Stack, useRouter } from "expo-router";
+import * as Location from "expo-location";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +15,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import type {
+  BleScannerStatus,
+  BluetoothState,
+  DiscoveredDevice,
+  PeripheralStatus,
+} from "@/ble/types";
+import { useBleScanner } from "@/hooks/useBleScanner";
+import { useBlePeripheral } from "@/hooks/useBlePeripheral";
+
 type ActivityTone = "critical" | "warning" | "community";
 
 type NearbyActivity = {
@@ -22,72 +34,34 @@ type NearbyActivity = {
   tone: ActivityTone;
 };
 
-const MOCK_HOME = {
-  identity: "N7",
-  network: {
-    title: "Local Network",
-    status: "Connected to nearby nodes",
-    nearbyNodes: 3,
-    mode: "Offline mode active",
-  },
-  activity: [
-    {
-      id: "road-blocked",
-      label: "Emergency Alert",
-      title: "Road blocked near Sector 4",
-      meta: "2 min ago · 1.2 km",
-      tone: "critical",
-    },
-    {
-      id: "water-supply",
-      label: "Local Alert",
-      title: "Water supply interruption",
-      meta: "8 min ago · Nearby",
-      tone: "warning",
-    },
-    {
-      id: "campus-network",
-      label: "Community",
-      title: "Campus Network",
-      meta: "12 active nodes",
-      tone: "community",
-    },
-  ] satisfies NearbyActivity[],
-  location: {
-    title: "Your area",
-    place: "Amsterdam · Approximate location",
-    note: "Location is shown as context only",
-  },
-};
-
-const TONE_STYLES: Record<
-  ActivityTone,
-  {
-    accent: string;
-    background: string;
-    label: string;
-  }
-> = {
-  critical: {
-    accent: "#C2410C",
-    background: "#FFF4ED",
-    label: "#9A3412",
-  },
-  warning: {
-    accent: "#B7791F",
-    background: "#FFFAEB",
-    label: "#8A5A10",
-  },
-  community: {
-    accent: "#2563EB",
-    background: "#EFF6FF",
-    label: "#1D4ED8",
-  },
-};
-
 export default function Index() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isCompact = width < 370;
+
+  const {
+    bluetoothState,
+    status,
+    devices,
+    totalDeviceCount,
+    errorMessage,
+    isScanning,
+    startScan,
+    stopScan,
+  } = useBleScanner();
+
+  const {
+    status: peripheralStatus,
+    nodeId,
+    advertisingName,
+    errorMessage: peripheralError,
+  } = useBlePeripheral();
+
+  const sahaDevicesCount = devices.filter((d) => d.isSahaDevice).length;
+
+  const handleOpenScanner = () => {
+    router.push("/scanner");
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -100,19 +74,57 @@ export default function Index() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Header identity={MOCK_HOME.identity} />
-        <NetworkStatusCard isCompact={isCompact} />
-        <PrimaryAction isCompact={isCompact} />
+        <Header identity={nodeId || "N7"} />
 
-        <SectionHeader title="Nearby" actionText="Live local activity" />
+        <NetworkStatusCard
+          isCompact={isCompact}
+          status={status}
+          bluetoothState={bluetoothState}
+          peripheralStatus={peripheralStatus}
+          advertisingName={advertisingName}
+          peripheralError={peripheralError}
+          sahaCount={sahaDevicesCount}
+          totalCount={totalDeviceCount}
+          errorMessage={errorMessage}
+          onPressCard={handleOpenScanner}
+        />
+
+        <PrimaryAction
+          isCompact={isCompact}
+          isScanning={isScanning}
+          onOpenScanner={handleOpenScanner}
+        />
+
+        <SectionHeader
+          title="Nearby Devices"
+          actionText={
+            devices.length > 0
+              ? `${sahaDevicesCount} SAHA (${totalDeviceCount} BLE total)`
+              : "BLE discovery layer"
+          }
+        />
+
         <View style={styles.activityList}>
-          {MOCK_HOME.activity.map((item) => (
-            <NearbyActivityCard key={item.id} activity={item} />
-          ))}
+          {devices.length > 0 ? (
+            devices.map((device) => (
+              <DiscoveredDeviceCard
+                key={device.id}
+                device={device}
+                onPress={handleOpenScanner}
+              />
+            ))
+          ) : (
+            <EmptyDevicesView
+              isScanning={isScanning}
+              status={status}
+              errorMessage={errorMessage}
+              onOpenScanner={handleOpenScanner}
+            />
+          )}
         </View>
 
         <View style={styles.contextGrid}>
-          <MeshVisualization />
+          <MeshVisualization activeNodesCount={sahaDevicesCount} />
           <LocationContext />
         </View>
       </ScrollView>
@@ -140,23 +152,114 @@ function Header({ identity }: { identity: string }) {
   );
 }
 
-function NetworkStatusCard({ isCompact }: { isCompact: boolean }) {
+function NetworkStatusCard({
+  isCompact,
+  status,
+  bluetoothState,
+  peripheralStatus,
+  advertisingName,
+  peripheralError,
+  sahaCount,
+  totalCount,
+  errorMessage,
+  onPressCard,
+}: {
+  isCompact: boolean;
+  status: BleScannerStatus;
+  bluetoothState: BluetoothState;
+  peripheralStatus: PeripheralStatus;
+  advertisingName: string;
+  peripheralError?: string | null;
+  sahaCount: number;
+  totalCount: number;
+  errorMessage: string;
+  onPressCard: () => void;
+}) {
+  let badgeText: string = peripheralStatus;
+  let badgeColor = "#55D187";
+  let statusText = "Ready to discover nearby nodes";
+  let subText = `Broadcasting as ${advertisingName}`;
+
+  if (peripheralStatus === "Advertising") {
+    badgeText = "Advertising";
+    badgeColor = "#10B981";
+    statusText = `Broadcasting BLE service (${advertisingName})`;
+    subText = "Peripheral active & discoverable";
+  } else if (peripheralStatus === "Connected") {
+    badgeText = "Connected";
+    badgeColor = "#10B981";
+    statusText = `Central node connected to ${advertisingName}`;
+    subText = "GATT server active";
+  } else if (peripheralStatus === "Advertising Failed") {
+    badgeText = "Adv Failed";
+    badgeColor = "#EF4444";
+    statusText = peripheralError || "BLE advertising failed";
+    subText = "Check Bluetooth permissions & hardware";
+  } else if (peripheralStatus === "Initializing") {
+    badgeText = "Initializing";
+    badgeColor = "#60A5FA";
+    statusText = "Initializing BLE peripheral & GATT server";
+    subText = "Starting advertiser...";
+  } else if (status === "bluetooth-off" || bluetoothState === "PoweredOff" || peripheralStatus === "Bluetooth Off") {
+    badgeText = "Bluetooth Off";
+    badgeColor = "#F59E0B";
+    statusText = "Bluetooth is turned off";
+    subText = "Turn on Bluetooth to advertise & scan";
+  } else if (status === "scanning") {
+    badgeText = "Scanning...";
+    badgeColor = "#60A5FA";
+    statusText = "Scanning for nearby BLE devices";
+    subText = `Searching for nodes (Me: ${advertisingName})`;
+  } else if (status === "permission-denied") {
+    badgeText = "No Access";
+    badgeColor = "#F59E0B";
+    statusText = "Bluetooth permissions required";
+    subText = errorMessage || "Grant location/BLE access";
+  } else if (
+    status === "bluetooth-unavailable" ||
+    bluetoothState === "Unavailable" ||
+    peripheralStatus === "Unavailable"
+  ) {
+    badgeText = "Unavailable";
+    badgeColor = "#EF4444";
+    statusText = "Bluetooth native module unavailable";
+    subText = "Native dev build required for BLE hardware";
+  } else if (status === "scan-complete") {
+    badgeText = (peripheralStatus as string) === "Advertising" ? "Advertising" : "Scan complete";
+    badgeColor = "#10B981";
+    statusText = `Discovered ${sahaCount} SAHA node${
+      sahaCount === 1 ? "" : "s"
+    }`;
+    subText = `${totalCount} total BLE signal${
+      totalCount === 1 ? "" : "s"
+    } detected`;
+  } else if (status === "error") {
+    badgeText = "Scan error";
+    badgeColor = "#EF4444";
+    statusText = errorMessage || "BLE scan failed";
+    subText = "Tap scan to try again";
+  } else if (sahaCount > 0) {
+    statusText = `${sahaCount} node${
+      sahaCount === 1 ? "" : "s"
+    } connected in local range`;
+  }
+
   return (
-    <View style={styles.networkCard}>
+    <Pressable onPress={onPressCard} style={styles.networkCard}>
       <View style={styles.networkTopRow}>
         <View style={styles.statusTitleGroup}>
           <View style={styles.statusBadge}>
-            <View style={styles.statusPulse} />
-            <Text style={styles.statusBadgeText}>Mesh ready</Text>
+            <View
+              style={[styles.statusPulse, { backgroundColor: badgeColor }]}
+            />
+            <Text style={styles.statusBadgeText}>{badgeText}</Text>
           </View>
-          <Text style={styles.networkTitle}>{MOCK_HOME.network.title}</Text>
-          <Text style={styles.networkStatus}>{MOCK_HOME.network.status}</Text>
+          <Text style={styles.networkTitle}>Local Network</Text>
+          <Text style={styles.networkStatus}>{statusText}</Text>
         </View>
 
         <View style={styles.nodeCountBlock}>
-          <Text style={styles.nodeCount}>
-            {MOCK_HOME.network.nearbyNodes}
-          </Text>
+          <Text style={styles.nodeCount}>{sahaCount}</Text>
           <Text style={styles.nodeCountLabel}>nodes</Text>
         </View>
       </View>
@@ -164,7 +267,7 @@ function NetworkStatusCard({ isCompact }: { isCompact: boolean }) {
       <View style={styles.networkBottomRow}>
         <View style={styles.offlineMode}>
           <View style={styles.offlineDot} />
-          <Text style={styles.offlineText}>{MOCK_HOME.network.mode}</Text>
+          <Text style={styles.offlineText}>{subText}</Text>
         </View>
 
         {!isCompact && (
@@ -172,32 +275,57 @@ function NetworkStatusCard({ isCompact }: { isCompact: boolean }) {
             <View style={[styles.miniMeshLine, styles.miniLineOne]} />
             <View style={[styles.miniMeshLine, styles.miniLineTwo]} />
             <View style={[styles.miniNode, styles.miniNodeLeft]} />
-            <View style={[styles.miniNode, styles.miniNodeCenter]} />
+            <View
+              style={[
+                styles.miniNode,
+                styles.miniNodeCenter,
+                { backgroundColor: badgeColor },
+              ]}
+            />
             <View style={[styles.miniNode, styles.miniNodeRight]} />
           </View>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
-function PrimaryAction({ isCompact }: { isCompact: boolean }) {
+function PrimaryAction({
+  isCompact,
+  isScanning,
+  onOpenScanner,
+}: {
+  isCompact: boolean;
+  isScanning: boolean;
+  onOpenScanner: () => void;
+}) {
+  const router = useRouter();
   return (
     <View style={styles.actionsCard}>
       <Pressable
         accessibilityRole="button"
+        onPress={onOpenScanner}
         style={({ pressed }) => [
           styles.primaryButton,
+          isScanning && styles.primaryButtonScanning,
           pressed && styles.buttonPressed,
         ]}
       >
         <View style={styles.primaryIcon}>
-          <Text style={styles.primaryIconText}>!</Text>
+          {isScanning ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryIconText}>📡</Text>
+          )}
         </View>
         <View style={styles.primaryCopy}>
-          <Text style={styles.primaryButtonText}>Create Alert</Text>
+          <Text style={styles.primaryButtonText}>
+            {isScanning ? "Scanning Area..." : "Scan for nearby devices"}
+          </Text>
           <Text style={styles.primaryButtonSubtext} numberOfLines={1}>
-            Broadcast urgent local information
+            {isScanning
+              ? "Open radar scanner & live discovery..."
+              : "Discover nearby SAHA nodes & BLE devices"}
           </Text>
         </View>
       </Pressable>
@@ -208,17 +336,21 @@ function PrimaryAction({ isCompact }: { isCompact: boolean }) {
           isCompact && styles.secondaryActionsCompact,
         ]}
       >
-        <SecondaryAction label="Create message" />
+        <SecondaryAction
+          label="BLE Chat"
+          onPress={() => router.push("/chat" as any)}
+        />
         <SecondaryAction label="Create channel" />
       </View>
     </View>
   );
 }
 
-function SecondaryAction({ label }: { label: string }) {
+function SecondaryAction({ label, onPress }: { label: string; onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
+      onPress={onPress}
       style={({ pressed }) => [
         styles.secondaryButton,
         pressed && styles.buttonPressed,
@@ -246,41 +378,114 @@ function SectionHeader({
   );
 }
 
-function NearbyActivityCard({ activity }: { activity: NearbyActivity }) {
-  const tone = TONE_STYLES[activity.tone];
+function DiscoveredDeviceCard({
+  device,
+  onPress,
+}: {
+  device: DiscoveredDevice;
+  onPress: () => void;
+}) {
+  const isSaha = device.isSahaDevice;
+  const name = device.name ?? (isSaha ? "SAHA Node" : "Unknown Device");
 
   return (
     <Pressable
-      accessibilityRole="button"
+      onPress={onPress}
       style={({ pressed }) => [
-        styles.activityCard,
-        { backgroundColor: tone.background },
-        pressed && styles.cardPressed,
+        styles.deviceCard,
+        isSaha ? styles.sahaDeviceCard : styles.bleDeviceCard,
+        pressed && styles.buttonPressed,
       ]}
     >
-      <View style={[styles.activityAccent, { backgroundColor: tone.accent }]} />
-      <View style={styles.activityContent}>
-        <View style={styles.activityHeader}>
+      <View
+        style={[
+          styles.deviceAccent,
+          { backgroundColor: isSaha ? "#10B981" : "#9CA3AF" },
+        ]}
+      />
+      <View style={styles.deviceContent}>
+        <View style={styles.deviceHeader}>
           <Text
-            style={[styles.activityLabel, { color: tone.label }]}
+            style={[
+              styles.deviceTag,
+              { color: isSaha ? "#047857" : "#4B5563" },
+            ]}
             numberOfLines={1}
           >
-            {activity.label}
+            {isSaha ? "● SAHA Device" : "○ Nearby BLE Device"}
           </Text>
-          <View style={[styles.priorityDot, { backgroundColor: tone.accent }]} />
+          <Text style={styles.deviceRssi}>
+            {device.rssi != null ? `${device.rssi} dBm` : "Signal --"}
+          </Text>
         </View>
-        <Text style={styles.activityTitle} numberOfLines={2}>
-          {activity.title}
+        <Text style={styles.deviceTitle} numberOfLines={1}>
+          {name}
         </Text>
-        <Text style={styles.activityMeta} numberOfLines={1}>
-          {activity.meta}
+        <Text style={styles.deviceIdText} numberOfLines={1}>
+          ID: {device.id}
         </Text>
       </View>
     </Pressable>
   );
 }
 
-function MeshVisualization() {
+function EmptyDevicesView({
+  isScanning,
+  status,
+  errorMessage,
+  onOpenScanner,
+}: {
+  isScanning: boolean;
+  status: BleScannerStatus;
+  errorMessage: string;
+  onOpenScanner: () => void;
+}) {
+  let title = "No nearby devices";
+  let message =
+    "Tap 'Scan for nearby devices' to open the interactive radar scanner.";
+
+  if (isScanning) {
+    title = "Scanning in progress";
+    message = "Searching for nearby Bluetooth Low Energy devices...";
+  } else if (status === "permission-denied") {
+    title = "Permission Required";
+    message =
+      errorMessage ||
+      "Bluetooth permission was denied. Allow Bluetooth access to scan.";
+  } else if (status === "bluetooth-off") {
+    title = "Bluetooth is Off";
+    message =
+      "Turn on Bluetooth on your device and tap Scan to discover nearby nodes.";
+  } else if (status === "bluetooth-unavailable") {
+    title = "BLE Unavailable";
+    message =
+      "Native Bluetooth hardware is unavailable in Expo Go. Run a custom dev build.";
+  } else if (errorMessage) {
+    title = "Scan Error";
+    message = errorMessage;
+  }
+
+  return (
+    <View style={styles.emptyStateContainer}>
+      <Text style={styles.emptyStateTitle}>{title}</Text>
+      <Text style={styles.emptyStateText}>{message}</Text>
+      {!isScanning && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onOpenScanner}
+          style={({ pressed }) => [
+            styles.emptyStateButton,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text style={styles.emptyStateButtonText}>Open Radar Scanner</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function MeshVisualization({ activeNodesCount }: { activeNodesCount: number }) {
   return (
     <View style={[styles.infoCard, styles.meshCard]}>
       <View style={styles.cardHeadingRow}>
@@ -296,7 +501,10 @@ function MeshVisualization() {
 
         <MeshNode style={styles.meshNodeTop} />
         <MeshNode style={styles.meshNodeLeft} />
-        <MeshNode style={styles.meshNodeRight} active />
+        <MeshNode
+          style={styles.meshNodeRight}
+          active={activeNodesCount > 0}
+        />
         <MeshNode style={styles.meshNodeBottom} />
       </View>
       <Text style={styles.infoCardText}>
@@ -320,16 +528,114 @@ function MeshNode({
   );
 }
 
+function formatLocationCoords(location: Location.LocationObject | null) {
+  if (!location) {
+    return "Finding current location...";
+  }
+
+  const { latitude, longitude } = location.coords;
+
+  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function formatLocationNote(location: Location.LocationObject | null) {
+  if (!location) {
+    return "Allow location access so SAHA can show this device's live position.";
+  }
+
+  const accuracy = location.coords.accuracy;
+  const updatedAt = new Date(location.timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `Updated ${updatedAt}${
+    accuracy === null ? "" : ` - accuracy about ${Math.round(accuracy)}m`
+  }`;
+}
+
 function LocationContext() {
+  const [deviceLocation, setDeviceLocation] =
+    useState<Location.LocationObject | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let subscription: Location.LocationSubscription | null = null;
+
+    async function startLocationTracking() {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (status !== Location.PermissionStatus.GRANTED) {
+        setLocationError("Location permission is off");
+        return;
+      }
+
+      try {
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        if (isMounted) {
+          setDeviceLocation(currentLocation);
+          setLocationError(null);
+        }
+
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 10,
+            timeInterval: 5000,
+          },
+          (updatedLocation: Location.LocationObject) => {
+            if (isMounted) {
+              setDeviceLocation(updatedLocation);
+              setLocationError(null);
+            }
+          },
+          () => {
+            if (isMounted) {
+              setLocationError("Unable to update live location");
+            }
+          }
+        );
+
+        if (!isMounted) {
+          subscription.remove();
+        }
+      } catch {
+        if (isMounted) {
+          setLocationError("Unable to read this device's location");
+        }
+      }
+    }
+
+    startLocationTracking();
+
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+    };
+  }, []);
+
+  const locationPlace = locationError ?? formatLocationCoords(deviceLocation);
+  const locationNote = locationError
+    ? "Turn on location permission to show this device's current position."
+    : formatLocationNote(deviceLocation);
+
   return (
     <View style={[styles.infoCard, styles.locationCard]}>
-      <Text style={styles.infoCardTitle}>{MOCK_HOME.location.title}</Text>
-      <Text style={styles.locationPlace}>{MOCK_HOME.location.place}</Text>
-      <Text style={styles.infoCardText}>{MOCK_HOME.location.note}</Text>
+      <Text style={styles.infoCardTitle}>Live device location</Text>
+      <Text style={styles.locationPlace}>{locationPlace}</Text>
+      <Text style={styles.infoCardText}>{locationNote}</Text>
 
       <View style={styles.emptyStatePreview}>
-        <Text style={styles.emptyStateTitle}>No nearby nodes</Text>
-        <Text style={styles.emptyStateText}>
+        <Text style={styles.emptyStatePreviewTitle}>Local BLE Sync</Text>
+        <Text style={styles.emptyStatePreviewText}>
           Messages stay local and sync when another SAHA device is nearby.
         </Text>
       </View>
@@ -428,7 +734,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#55D187",
   },
   statusBadgeText: {
     color: "#D8F8E2",
@@ -534,7 +839,6 @@ const styles = StyleSheet.create({
   miniNodeCenter: {
     left: 30,
     top: 3,
-    backgroundColor: "#55D187",
   },
   miniNodeRight: {
     right: 8,
@@ -557,6 +861,9 @@ const styles = StyleSheet.create({
     gap: 14,
     backgroundColor: "#DF4E2F",
   },
+  primaryButtonScanning: {
+    backgroundColor: "#2563EB",
+  },
   buttonPressed: {
     opacity: 0.82,
     transform: [{ scale: 0.99 }],
@@ -571,7 +878,7 @@ const styles = StyleSheet.create({
   },
   primaryIconText: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "900",
   },
   primaryCopy: {
@@ -579,14 +886,14 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "900",
     letterSpacing: -0.2,
   },
   primaryButtonSubtext: {
     marginTop: 3,
     color: "#FFE5DD",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
   secondaryActions: {
@@ -635,55 +942,90 @@ const styles = StyleSheet.create({
   activityList: {
     gap: 10,
   },
-  activityCard: {
-    minHeight: 86,
-    borderRadius: 22,
+  deviceCard: {
+    minHeight: 76,
+    borderRadius: 20,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(17, 24, 39, 0.06)",
     flexDirection: "row",
   },
-  cardPressed: {
-    opacity: 0.88,
+  sahaDeviceCard: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
   },
-  activityAccent: {
+  bleDeviceCard: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+  },
+  deviceAccent: {
     width: 5,
   },
-  activityContent: {
+  deviceContent: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingVertical: 12,
   },
-  activityHeader: {
+  deviceHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
-  activityLabel: {
-    flexShrink: 1,
+  deviceTag: {
     fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.7,
+    letterSpacing: 0.6,
   },
-  priorityDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+  deviceRssi: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#6B7280",
   },
-  activityTitle: {
-    marginTop: 7,
-    color: "#17201C",
+  deviceTitle: {
+    marginTop: 4,
+    color: "#111827",
     fontSize: 16,
-    lineHeight: 21,
     fontWeight: "800",
   },
-  activityMeta: {
-    marginTop: 6,
-    color: "#6B716B",
-    fontSize: 13,
+  deviceIdText: {
+    marginTop: 2,
+    color: "#6B7280",
+    fontSize: 12,
     fontWeight: "600",
+  },
+  emptyStateContainer: {
+    padding: 22,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#E7E0D4",
+    backgroundColor: "#FFFDF8",
+    alignItems: "center",
+  },
+  emptyStateTitle: {
+    color: "#1F2937",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  emptyStateText: {
+    marginTop: 6,
+    color: "#6B7280",
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  emptyStateButton: {
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "#DF4E2F",
+  },
+  emptyStateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
   },
   contextGrid: {
     marginTop: 16,
@@ -825,12 +1167,12 @@ const styles = StyleSheet.create({
     borderColor: "#E7E0D4",
     backgroundColor: "#F8F3EA",
   },
-  emptyStateTitle: {
+  emptyStatePreviewTitle: {
     color: "#34413B",
     fontSize: 14,
     fontWeight: "900",
   },
-  emptyStateText: {
+  emptyStatePreviewText: {
     marginTop: 5,
     color: "#73786F",
     fontSize: 12,

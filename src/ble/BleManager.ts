@@ -51,11 +51,22 @@ function getNativeManager(): NativeBleManager | null {
     return null;
   }
 
-  manager = new bleModule.BleManager();
-  return manager;
+  try {
+    manager = new bleModule.BleManager();
+    return manager;
+  } catch (error) {
+    moduleLoadError =
+      error instanceof Error ? error : new Error("Failed to create BleManager");
+    log("Native manager creation failed", moduleLoadError.message);
+    return null;
+  }
 }
 
 export const bleManager = {
+  getNativeManager(): NativeBleManager | null {
+    return getNativeManager();
+  },
+
   getModuleError() {
     return moduleLoadError;
   },
