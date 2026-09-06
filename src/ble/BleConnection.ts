@@ -8,61 +8,152 @@ import {
 import type { ConnectionTestState } from "./types";
 import type { Characteristic, Device, Subscription } from "react-native-ble-plx";
 
-const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-export function encodeBase64(input: string): string {
-  let output = "";
-  let i = 0;
-  while (i < input.length) {
-    const chr1 = input.charCodeAt(i++);
-    const chr2 = input.charCodeAt(i++);
-    const chr3 = input.charCodeAt(i++);
+function encodeUtf8(input: string): number[] {
+  const bytes: number[] = [];
 
-    const enc1 = chr1 >> 2;
-    const enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-    let enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
-    let enc4 = chr3 & 63;
+  for (let index = 0; index < input.length; index += 1) {
+    let codePoint = input.charCodeAt(index);
 
-    if (isNaN(chr2)) {
-      enc3 = enc4 = 64;
-    } else if (isNaN(chr3)) {
-      enc4 = 64;
+    if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
+      const next = input.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (next - 0xdc00);
+        index += 1;
+      } else {
+        codePoint = 0xfffd;
+      }
+    } else if (codePoint >= 0xdc00 && codePoint <= 0xdfff) {
+      codePoint = 0xfffd;
     }
 
-    output =
-      output +
-      BASE64_CHARS.charAt(enc1) +
-      BASE64_CHARS.charAt(enc2) +
-      BASE64_CHARS.charAt(enc3) +
-      BASE64_CHARS.charAt(enc4);
+    if (codePoint <= 0x7f) {
+      bytes.push(codePoint);
+    } else if (codePoint <= 0x7ff) {
+      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+    } else if (codePoint <= 0xffff) {
+      bytes.push(
+        0xe0 | (codePoint >> 12),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    } else {
+      bytes.push(
+        0xf0 | (codePoint >> 18),
+        0x80 | ((codePoint >> 12) & 0x3f),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    }
   }
+
+  return bytes;
+}
+
+function decodeUtf8(bytes: number[]): string {
+  let output = "";
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    const first = bytes[index];
+    let codePoint: number;
+    let sequenceLength: number;
+
+    if (first <= 0x7f) {
+      codePoint = first;
+      sequenceLength = 1;
+    } else if (first >= 0xc2 && first <= 0xdf) {
+      codePoint = first & 0x1f;
+      sequenceLength = 2;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      codePoint = first & 0x0f;
+      sequenceLength = 3;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      codePoint = first & 0x07;
+      sequenceLength = 4;
+    } else {
+      output += "\ufffd";
+      continue;
+    }
+
+    if (index + sequenceLength > bytes.length) {
+      output += "\ufffd";
+      break;
+    }
+
+    let valid = true;
+    for (let offset = 1; offset < sequenceLength; offset += 1) {
+      const continuation = bytes[index + offset];
+      if ((continuation & 0xc0) !== 0x80) {
+        valid = false;
+        break;
+      }
+      codePoint = (codePoint << 6) | (continuation & 0x3f);
+    }
+
+    const isOverlong =
+      (sequenceLength === 2 && codePoint < 0x80) ||
+      (sequenceLength === 3 && codePoint < 0x800) ||
+      (sequenceLength === 4 && codePoint < 0x10000);
+    const isInvalidCodePoint = codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff);
+
+    if (!valid || isOverlong || isInvalidCodePoint) {
+      output += "\ufffd";
+      index += valid ? sequenceLength - 2 : 0;
+      continue;
+    }
+
+    if (codePoint <= 0xffff) {
+      output += String.fromCharCode(codePoint);
+    } else {
+      const adjusted = codePoint - 0x10000;
+      output += String.fromCharCode(0xd800 + (adjusted >> 10), 0xdc00 + (adjusted & 0x3ff));
+    }
+    index += sequenceLength - 1;
+  }
+
+  return output;
+}
+
+export function encodeBase64(input: string): string {
+  const bytes = encodeUtf8(input);
+  let output = "";
+
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index];
+    const second = bytes[index + 1];
+    const third = bytes[index + 2];
+
+    output += BASE64_CHARS[first >> 2];
+    output += BASE64_CHARS[((first & 0x03) << 4) | (second === undefined ? 0 : second >> 4)];
+    output += second === undefined
+      ? "="
+      : BASE64_CHARS[((second & 0x0f) << 2) | (third === undefined ? 0 : third >> 6)];
+    output += third === undefined ? "=" : BASE64_CHARS[third & 0x3f];
+  }
+
   return output;
 }
 
 export function decodeBase64(input: string): string {
-  let output = "";
-  let i = 0;
-  const cleaned = input.replace(/[^A-Za-z0-9+/=]/g, "");
-
-  while (i < cleaned.length) {
-    const enc1 = BASE64_CHARS.indexOf(cleaned.charAt(i++));
-    const enc2 = BASE64_CHARS.indexOf(cleaned.charAt(i++));
-    const enc3 = BASE64_CHARS.indexOf(cleaned.charAt(i++));
-    const enc4 = BASE64_CHARS.indexOf(cleaned.charAt(i++));
-
-    const chr1 = (enc1 << 2) | (enc2 >> 4);
-    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-    const chr3 = ((enc3 & 3) << 6) | enc4;
-
-    output += String.fromCharCode(chr1);
-    if (enc3 !== 64) {
-      output += String.fromCharCode(chr2);
-    }
-    if (enc4 !== 64) {
-      output += String.fromCharCode(chr3);
-    }
+  if (input.length === 0) return "";
+  if (input.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(input)) {
+    throw new Error("Invalid Base64 input");
   }
-  return output;
+
+  const bytes: number[] = [];
+  for (let index = 0; index < input.length; index += 4) {
+    const first = BASE64_CHARS.indexOf(input[index]);
+    const second = BASE64_CHARS.indexOf(input[index + 1]);
+    const third = input[index + 2] === "=" ? 0 : BASE64_CHARS.indexOf(input[index + 2]);
+    const fourth = input[index + 3] === "=" ? 0 : BASE64_CHARS.indexOf(input[index + 3]);
+
+    bytes.push((first << 2) | (second >> 4));
+    if (input[index + 2] !== "=") bytes.push(((second & 0x0f) << 4) | (third >> 2));
+    if (input[index + 3] !== "=") bytes.push(((third & 0x03) << 6) | fourth);
+  }
+
+  return decodeUtf8(bytes);
 }
 
 export type ConnectionTestResult = {
