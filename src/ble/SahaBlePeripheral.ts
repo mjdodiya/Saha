@@ -107,6 +107,16 @@ export const sahaBlePeripheral = {
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to start peripheral";
       log("startPeripheral error", msg);
+      const currentStatus = await this.getStatus();
+      if (
+        currentStatus.status === "Service Registration Failed" ||
+        currentStatus.status === "Advertising Failed"
+      ) {
+        return {
+          ...currentStatus,
+          errorMessage: currentStatus.errorMessage ?? msg,
+        };
+      }
       return {
         status: "Advertising Failed",
         nodeId: await this.getNodeId(),

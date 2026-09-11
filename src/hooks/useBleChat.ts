@@ -8,18 +8,18 @@ import type {
 import { decodeBase64, encodeBase64 } from '@/ble/BleConnection';
 import { bleManager } from '@/ble/BleManager';
 import {
+  IDENTITY_CHARACTERISTIC_UUID,
+  RX_CHARACTERISTIC_UUID,
+  SAHA_BLE_CONFIG,
+  SAHA_SERVICE_UUID,
+  TX_CHARACTERISTIC_UUID,
+} from '@/ble/config';
+import { sahaBlePeripheral } from '@/ble/SahaBlePeripheral';
+import {
   createChatMessage,
   decodeMessage,
   encodeMessage,
 } from '@/ble/SahaProtocol';
-import {
-  IDENTITY_CHARACTERISTIC_UUID,
-  RX_CHARACTERISTIC_UUID,
-  SAHA_SERVICE_UUID,
-  TX_CHARACTERISTIC_UUID,
-  SAHA_BLE_CONFIG,
-} from '@/ble/config';
-import { sahaBlePeripheral } from '@/ble/SahaBlePeripheral';
 import type { ChatConnectionState, ChatMessage } from '@/ble/types';
 
 export function useBleChat(
@@ -49,7 +49,15 @@ export function useBleChat(
 
   // Helper to add a message to chat history state with debugging log
   const addMessage = useCallback(
-    ({ id, senderId, receiverId, content, isSelf, status, timestamp }: {
+    ({
+      id,
+      senderId,
+      receiverId,
+      content,
+      isSelf,
+      status,
+      timestamp,
+    }: {
       id: string;
       senderId: string;
       receiverId: string;
@@ -218,17 +226,15 @@ export function useBleChat(
                 '[SAHA-BLE][CENTRAL][TX] Decoded notification text message:',
                 protocolMessage.payload,
               );
-              addMessage(
-                {
-                  id: protocolMessage.id,
-                  senderId: protocolMessage.senderId,
-                  receiverId: localNodeIdRef.current,
-                  content: protocolMessage.payload,
-                  isSelf: false,
-                  status: 'received',
-                  timestamp: protocolMessage.timestamp * 1000,
-                },
-              );
+              addMessage({
+                id: protocolMessage.id,
+                senderId: protocolMessage.senderId,
+                receiverId: localNodeIdRef.current,
+                content: protocolMessage.payload,
+                isSelf: false,
+                status: 'received',
+                timestamp: protocolMessage.timestamp * 1000,
+              });
             }
           },
         );
@@ -318,7 +324,9 @@ export function useBleChat(
           if (protocolMessage.type !== 'message') return;
           addMessage({
             id: protocolMessage.id,
-            senderId: protocolMessage.senderId || `Central (${event.deviceId.slice(-4)})`,
+            senderId:
+              protocolMessage.senderId ||
+              `Central (${event.deviceId.slice(-4)})`,
             receiverId: localNodeIdRef.current,
             content: protocolMessage.payload,
             isSelf: false,
@@ -326,7 +334,10 @@ export function useBleChat(
             timestamp: protocolMessage.timestamp * 1000,
           });
         } catch (error) {
-          console.log('[SAHA-BLE][PERIPHERAL][RX] Invalid protocol message', error);
+          console.log(
+            '[SAHA-BLE][PERIPHERAL][RX] Invalid protocol message',
+            error,
+          );
         }
       }
     });
@@ -404,7 +415,9 @@ export function useBleChat(
           );
           const base64Payload = encodeBase64(encodeMessage(outgoingMessage));
           if (base64Payload.length > SAHA_BLE_CONFIG.maxTransportPayloadBytes) {
-            addFailedMessage('Message is too large for the current BLE payload limit');
+            addFailedMessage(
+              'Message is too large for the current BLE payload limit',
+            );
             return false;
           }
           console.log(
@@ -422,7 +435,11 @@ export function useBleChat(
           addMessage({
             id: outgoingMessage.id,
             senderId: outgoingMessage.senderId,
-            receiverId: peerIdentityRef.current || targetDeviceName || targetDeviceId || 'peer',
+            receiverId:
+              peerIdentityRef.current ||
+              targetDeviceName ||
+              targetDeviceId ||
+              'peer',
             content: outgoingMessage.payload,
             isSelf: true,
             status: 'sent',
@@ -451,10 +468,13 @@ export function useBleChat(
         const encodedMessage = encodeMessage(outgoingMessage);
         const encodedPayload = encodeBase64(encodedMessage);
         if (encodedPayload.length > SAHA_BLE_CONFIG.maxTransportPayloadBytes) {
-          addFailedMessage('Message is too large for the current BLE payload limit');
+          addFailedMessage(
+            'Message is too large for the current BLE payload limit',
+          );
           return false;
         }
-        const success = await sahaBlePeripheral.sendNotification(encodedMessage);
+        const success =
+          await sahaBlePeripheral.sendNotification(encodedMessage);
         if (success) {
           console.log(
             '[SAHA-BLE][PERIPHERAL][TX] TX notification delivered successfully',
@@ -473,7 +493,9 @@ export function useBleChat(
           console.log(
             '[SAHA-BLE][PERIPHERAL][TX] Failed to send TX notification (no connected Central)',
           );
-          addFailedMessage('Failed to send TX notification (no connected Central)');
+          addFailedMessage(
+            'Failed to send TX notification (no connected Central)',
+          );
           return false;
         }
       }

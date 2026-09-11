@@ -70,7 +70,12 @@ export function decodeMessage(encoded: string): SahaMessage {
 }
 
 export function validateMessage(value: unknown): value is SahaMessage {
-  if (!isRecord(value) || typeof value.type !== 'string' || typeof value.id !== 'string' || value.id.length === 0) {
+  if (
+    !isRecord(value) ||
+    typeof value.type !== 'string' ||
+    typeof value.id !== 'string' ||
+    value.id.length === 0
+  ) {
     return false;
   }
 

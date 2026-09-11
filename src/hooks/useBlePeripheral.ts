@@ -17,8 +17,14 @@ export function useBlePeripheral() {
   } | null>(null);
 
   const updatePeripheralInfo = useCallback(async () => {
-    const current = await sahaBlePeripheral.getStatus();
-    setInfo(current);
+    try {
+      const nodeId = await sahaBlePeripheral.getNodeId();
+      const current = await sahaBlePeripheral.getStatus();
+      setInfo({ ...current, nodeId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to read peripheral status";
+      setInfo((prev) => ({ ...prev, errorMessage: message }));
+    }
   }, []);
 
   const startPeripheral = useCallback(async () => {
@@ -49,7 +55,15 @@ export function useBlePeripheral() {
         return;
       }
 
-      const nodeId = await sahaBlePeripheral.getNodeId();
+      let nodeId = "UNKNOWN";
+      try {
+        nodeId = await sahaBlePeripheral.getNodeId();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to read node ID";
+        if (isMounted) {
+          setInfo((prev) => ({ ...prev, errorMessage: message }));
+        }
+      }
       if (isMounted) {
         setInfo((prev) => ({
           ...prev,
@@ -65,7 +79,14 @@ export function useBlePeripheral() {
       }
 
       // Only auto-start if not already running
-      if (currentStatus.status !== "Advertising" && currentStatus.status !== "Connected" && currentStatus.status !== "Initializing") {
+      const peripheralActiveOrStarting = [
+        "Advertising",
+        "Connected",
+        "Initializing",
+        "Service Registration Pending",
+        "Advertising Pending",
+      ].includes(currentStatus.status);
+      if (!peripheralActiveOrStarting) {
         const result = await sahaBlePeripheral.startPeripheral();
         if (isMounted) {
           setInfo(result);

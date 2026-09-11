@@ -1,4 +1,10 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
 
 import type { ConnectionTestResult } from '@/ble/BleConnection';
 import type { ChatConnectionState } from '@/ble/types';
@@ -7,7 +13,15 @@ import { useBlePeripheral } from './useBlePeripheral';
 import { useBleScanner } from './useBleScanner';
 
 type ActivePeer = { id: string; name?: string | null } | null;
-type SharedConnectionState = 'idle' | 'connecting' | 'discovering' | 'verifying' | 'connected' | 'disconnecting' | 'disconnected' | 'failed';
+type SharedConnectionState =
+  | 'idle'
+  | 'connecting'
+  | 'discovering'
+  | 'verifying'
+  | 'connected'
+  | 'disconnecting'
+  | 'disconnected'
+  | 'failed';
 
 type BleContextValue = {
   scanner: ReturnType<typeof useBleScanner>;
@@ -30,12 +44,16 @@ export function BleProvider({ children }: { children: React.ReactNode }) {
   const peripheral = useBlePeripheral();
   const chat = useBleChat();
   const [activePeer, setActivePeer] = useState<ActivePeer>(null);
-  const [lastConnectionTest, setLastConnectionTest] = useState<ConnectionTestResult | null>(null);
+  const [lastConnectionTest, setLastConnectionTest] =
+    useState<ConnectionTestResult | null>(null);
 
-  const connectToPeer = useCallback(async (id: string, name?: string | null) => {
-    setActivePeer({ id, name });
-    await chat.connectToPeer(id, name);
-  }, [chat.connectToPeer]);
+  const connectToPeer = useCallback(
+    async (id: string, name?: string | null) => {
+      setActivePeer({ id, name });
+      await chat.connectToPeer(id, name);
+    },
+    [chat.connectToPeer],
+  );
 
   const disconnect = useCallback(async () => {
     await chat.disconnect();
@@ -43,26 +61,41 @@ export function BleProvider({ children }: { children: React.ReactNode }) {
   }, [chat.disconnect]);
 
   const connectionState = mapConnectionState(chat.connectionState);
-  const value = useMemo<BleContextValue>(() => ({
-    scanner,
-    peripheral,
-    chat,
-    activePeer,
-    connectionState,
-    connectionError: chat.errorMessage,
-    lastConnectionTest,
-    advertising: peripheral.status === 'Advertising' || peripheral.status === 'Connected',
-    connectToPeer,
-    disconnect,
-    setLastConnectionTest,
-  }), [scanner, peripheral, chat, activePeer, connectionState, lastConnectionTest, connectToPeer, disconnect]);
+  const value = useMemo<BleContextValue>(
+    () => ({
+      scanner,
+      peripheral,
+      chat,
+      activePeer,
+      connectionState,
+      connectionError: chat.errorMessage,
+      lastConnectionTest,
+      advertising:
+        peripheral.status === 'Advertising' ||
+        peripheral.status === 'Connected',
+      connectToPeer,
+      disconnect,
+      setLastConnectionTest,
+    }),
+    [
+      scanner,
+      peripheral,
+      chat,
+      activePeer,
+      connectionState,
+      lastConnectionTest,
+      connectToPeer,
+      disconnect,
+    ],
+  );
 
   return <BleContext.Provider value={value}>{children}</BleContext.Provider>;
 }
 
 export function useBleContext() {
   const context = useContext(BleContext);
-  if (!context) throw new Error('useBleContext must be used inside BleProvider');
+  if (!context)
+    throw new Error('useBleContext must be used inside BleProvider');
   return context;
 }
 

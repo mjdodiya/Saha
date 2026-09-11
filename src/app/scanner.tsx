@@ -1,5 +1,5 @@
-import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -13,58 +13,59 @@ import {
   Text,
   useWindowDimensions,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { ConnectionTestResult } from "@/ble/BleConnection";
-import { runSahaConnectionTest } from "@/ble/BleConnection";
-import type { DiscoveredDevice } from "@/ble/types";
-import { useBleContext } from "@/hooks/BleContext";
+import type { ConnectionTestResult } from '@/ble/BleConnection';
+import { runSahaConnectionTest } from '@/ble/BleConnection';
+import type { DiscoveredDevice } from '@/ble/types';
+import { useBleContext } from '@/hooks/BleContext';
 
 export function getRssiMetadata(rssi: number | null) {
   if (rssi === null) {
     return {
-      label: "Unknown",
-      distance: "Unknown range",
+      label: 'Unknown',
+      distance: 'Unknown range',
       bars: 1,
-      color: "#9CA3AF",
+      color: '#9CA3AF',
     };
   }
   if (rssi >= -60) {
     return {
-      label: "Strong",
-      distance: "Immediate (< 2m)",
+      label: 'Strong',
+      distance: 'Immediate (< 2m)',
       bars: 4,
-      color: "#10B981",
+      color: '#10B981',
     };
   }
   if (rssi >= -75) {
     return {
-      label: "Moderate",
-      distance: "Near (2 - 5m)",
+      label: 'Moderate',
+      distance: 'Near (2 - 5m)',
       bars: 3,
-      color: "#3B82F6",
+      color: '#3B82F6',
     };
   }
   if (rssi >= -88) {
     return {
-      label: "Weak",
-      distance: "Far (5 - 10m)",
+      label: 'Weak',
+      distance: 'Far (5 - 10m)',
       bars: 2,
-      color: "#F59E0B",
+      color: '#F59E0B',
     };
   }
   return {
-    label: "Very Weak",
-    distance: "Very Far (> 10m)",
+    label: 'Very Weak',
+    distance: 'Very Far (> 10m)',
     bars: 1,
-    color: "#EF4444",
+    color: '#EF4444',
   };
 }
 
 export default function ScannerScreen() {
   const router = useRouter();
-  const { scanner, peripheral } = useBleContext();
+  const { scanner, peripheral, lastConnectionTest, setLastConnectionTest } =
+    useBleContext();
   const { width } = useWindowDimensions();
   const isCompact = width < 370;
 
@@ -79,12 +80,9 @@ export default function ScannerScreen() {
     stopScan,
   } = scanner;
 
-  const {
-    status: peripheralStatus,
-    advertisingName,
-  } = peripheral;
+  const { status: peripheralStatus, advertisingName } = peripheral;
 
-  const [selectedFilter, setSelectedFilter] = useState<"all" | "saha">("all");
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'saha'>('all');
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredDevice | null>(
     null,
   );
@@ -112,16 +110,17 @@ export default function ScannerScreen() {
   }, [isScanning]);
 
   const filteredDevices =
-    selectedFilter === "saha"
-      ? devices.filter((d) => d.isSahaDevice)
-      : devices;
+    selectedFilter === 'saha' ? devices.filter((d) => d.isSahaDevice) : devices;
 
   const sahaCount = devices.filter((d) => d.isSahaDevice).length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#0F172A"
+      />
 
       {/* Navigation Top Header */}
       <View style={styles.topHeader}>
@@ -131,8 +130,7 @@ export default function ScannerScreen() {
           style={({ pressed }) => [
             styles.backButton,
             pressed && styles.buttonPressed,
-          ]}
-        >
+          ]}>
           <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
 
@@ -150,10 +148,9 @@ export default function ScannerScreen() {
             styles.scanToggleButton,
             isScanning && styles.scanToggleButtonActive,
             pressed && styles.buttonPressed,
-          ]}
-        >
+          ]}>
           <Text style={styles.scanToggleText}>
-            {isScanning ? "Stop" : "Scan"}
+            {isScanning ? 'Stop' : 'Scan'}
           </Text>
         </Pressable>
       </View>
@@ -163,8 +160,7 @@ export default function ScannerScreen() {
           styles.scrollContent,
           isCompact && styles.scrollContentCompact,
         ]}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         {/* Animated Radar Visual Component */}
         <RadarView
           isScanning={isScanning}
@@ -188,34 +184,30 @@ export default function ScannerScreen() {
         {devices.length > 0 && (
           <View style={styles.filterTabsContainer}>
             <Pressable
-              onPress={() => setSelectedFilter("all")}
+              onPress={() => setSelectedFilter('all')}
               style={[
                 styles.filterTab,
-                selectedFilter === "all" && styles.filterTabActive,
-              ]}
-            >
+                selectedFilter === 'all' && styles.filterTabActive,
+              ]}>
               <Text
                 style={[
                   styles.filterTabText,
-                  selectedFilter === "all" && styles.filterTabTextActive,
-                ]}
-              >
+                  selectedFilter === 'all' && styles.filterTabTextActive,
+                ]}>
                 All BLE ({totalDeviceCount})
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setSelectedFilter("saha")}
+              onPress={() => setSelectedFilter('saha')}
               style={[
                 styles.filterTab,
-                selectedFilter === "saha" && styles.filterTabActive,
-              ]}
-            >
+                selectedFilter === 'saha' && styles.filterTabActive,
+              ]}>
               <Text
                 style={[
                   styles.filterTabText,
-                  selectedFilter === "saha" && styles.filterTabTextActive,
-                ]}
-              >
+                  selectedFilter === 'saha' && styles.filterTabTextActive,
+                ]}>
                 SAHA Nodes ({sahaCount})
               </Text>
             </Pressable>
@@ -247,6 +239,8 @@ export default function ScannerScreen() {
       {selectedDevice && (
         <DeviceDetailModal
           device={selectedDevice}
+          lastConnectionTest={lastConnectionTest}
+          setLastConnectionTest={setLastConnectionTest}
           onClose={() => setSelectedDevice(null)}
         />
       )}
@@ -343,16 +337,16 @@ function RadarView({
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
+    outputRange: ['0deg', '360deg'],
   });
 
   // Calculate radar positions for devices based on index/id hash
   const RADAR_RADIUS = 95;
   const deviceMarkers = devices.slice(0, 8).map((device, index) => {
-    const angle = (index * (360 / Math.min(devices.length, 8))) * (Math.PI / 180);
+    const angle = index * (360 / Math.min(devices.length, 8)) * (Math.PI / 180);
     const rssiVal = device.rssi ?? -80;
     // Normalized distance multiplier (stronger RSSI = closer to center)
-    const distanceMult = Math.min(Math.max(( -rssiVal - 40) / 60, 0.35), 0.85);
+    const distanceMult = Math.min(Math.max((-rssiVal - 40) / 60, 0.35), 0.85);
     const x = Math.cos(angle) * RADAR_RADIUS * distanceMult;
     const y = Math.sin(angle) * RADAR_RADIUS * distanceMult;
 
@@ -386,8 +380,10 @@ function RadarView({
             ]}
           />
           <Animated.View
-            style={[styles.radarSweepLineContainer, { transform: [{ rotate: spin }] }]}
-          >
+            style={[
+              styles.radarSweepLineContainer,
+              { transform: [{ rotate: spin }] },
+            ]}>
             <View style={styles.radarSweepBeam} />
           </Animated.View>
         </>
@@ -412,12 +408,11 @@ function RadarView({
               transform: [{ translateX: x }, { translateY: y }],
             },
             pressed && styles.markerPressed,
-          ]}
-        >
+          ]}>
           <View
             style={[
               styles.markerDot,
-              { backgroundColor: device.isSahaDevice ? "#10B981" : "#3B82F6" },
+              { backgroundColor: device.isSahaDevice ? '#10B981' : '#3B82F6' },
             ]}
           />
         </Pressable>
@@ -449,41 +444,45 @@ function StatusBanner({
   errorMessage: string;
   onStartScan: () => void;
 }) {
-  let title = "Ready to scan";
-  let statusColor = "#10B981";
+  let title = 'Ready to scan';
+  let statusColor = '#10B981';
   let description = "Tap 'Scan' to search for nearby SAHA nodes & BLE signals.";
 
   if (isScanning) {
-    title = "Scanning for nearby devices...";
-    statusColor = "#3B82F6";
+    title = 'Scanning for nearby devices...';
+    statusColor = '#3B82F6';
     description = `Active scan running (${scanSeconds}s / 10s timeout)...`;
-  } else if (status === "permission-denied") {
-    title = "Bluetooth permission is required";
-    statusColor = "#F59E0B";
+  } else if (status === 'permission-denied') {
+    title = 'Bluetooth permission is required';
+    statusColor = '#F59E0B';
     description =
-      errorMessage || "Bluetooth & Location permissions are required to scan nearby devices.";
+      errorMessage ||
+      'Bluetooth & Location permissions are required to scan nearby devices.';
   } else if (
-    status === "bluetooth-unavailable" ||
-    bluetoothState === "Unavailable"
+    status === 'bluetooth-unavailable' ||
+    bluetoothState === 'Unavailable'
   ) {
-    title = "Development build required";
-    statusColor = "#EF4444";
+    title = 'Development build required';
+    statusColor = '#EF4444';
     description =
-      "SAHA BLE scanning requires the native development build (react-native-ble-plx is unavailable in Expo Go).";
-  } else if (status === "bluetooth-off" || bluetoothState === "PoweredOff") {
-    title = "Bluetooth is turned off";
-    statusColor = "#F59E0B";
-    description = "Turn on Bluetooth on your device to scan for nearby nodes.";
-  } else if (status === "scan-complete") {
-    title = deviceCount > 0 ? `${deviceCount} nearby device${deviceCount === 1 ? "" : "s"}` : "No nearby devices found";
-    statusColor = "#10B981";
+      'SAHA BLE scanning requires the native development build (react-native-ble-plx is unavailable in Expo Go).';
+  } else if (status === 'bluetooth-off' || bluetoothState === 'PoweredOff') {
+    title = 'Bluetooth is turned off';
+    statusColor = '#F59E0B';
+    description = 'Turn on Bluetooth on your device to scan for nearby nodes.';
+  } else if (status === 'scan-complete') {
+    title =
+      deviceCount > 0
+        ? `${deviceCount} nearby device${deviceCount === 1 ? '' : 's'}`
+        : 'No nearby devices found';
+    statusColor = '#10B981';
     description = `Discovered ${sahaCount} SAHA node${
-      sahaCount === 1 ? "" : "s"
+      sahaCount === 1 ? '' : 's'
     } and ${deviceCount} total BLE signals.`;
-  } else if (status === "error") {
-    title = "Unable to scan for nearby devices";
-    statusColor = "#EF4444";
-    description = errorMessage || "Failed to execute BLE discovery.";
+  } else if (status === 'error') {
+    title = 'Unable to scan for nearby devices';
+    statusColor = '#EF4444';
+    description = errorMessage || 'Failed to execute BLE discovery.';
   }
 
   return (
@@ -495,7 +494,10 @@ function StatusBanner({
               style={[styles.statusDot, { backgroundColor: statusColor }]}
             />
             {isScanning && (
-              <ActivityIndicator size="small" color={statusColor} />
+              <ActivityIndicator
+                size="small"
+                color={statusColor}
+              />
             )}
           </View>
           <Text style={styles.statusTitleText}>{title}</Text>
@@ -507,8 +509,7 @@ function StatusBanner({
             style={({ pressed }) => [
               styles.rescanButton,
               pressed && styles.buttonPressed,
-            ]}
-          >
+            ]}>
             <Text style={styles.rescanButtonText}>Rescan</Text>
           </Pressable>
         )}
@@ -530,7 +531,7 @@ function DeviceCard({
   onPress: () => void;
 }) {
   const isSaha = device.isSahaDevice;
-  const name = device.name ?? (isSaha ? "SAHA Node" : "Unknown BLE Device");
+  const name = device.name ?? (isSaha ? 'SAHA Node' : 'Unknown BLE Device');
   const rssiMeta = getRssiMetadata(device.rssi);
 
   return (
@@ -540,12 +541,11 @@ function DeviceCard({
         styles.deviceCard,
         isSaha ? styles.sahaCardBorder : styles.bleCardBorder,
         pressed && styles.buttonPressed,
-      ]}
-    >
+      ]}>
       <View
         style={[
           styles.deviceCardAccent,
-          { backgroundColor: isSaha ? "#10B981" : "#3B82F6" },
+          { backgroundColor: isSaha ? '#10B981' : '#3B82F6' },
         ]}
       />
       <View style={styles.deviceCardMain}>
@@ -554,35 +554,36 @@ function DeviceCard({
             <Text
               style={[
                 styles.deviceTypeTag,
-                { color: isSaha ? "#059669" : "#2563EB" },
-              ]}
-            >
-              {isSaha ? "● SAHA Node" : "○ BLE Signal"}
+                { color: isSaha ? '#059669' : '#2563EB' },
+              ]}>
+              {isSaha ? '● SAHA Node' : '○ BLE Signal'}
             </Text>
             <View
               style={[
                 styles.proximityBadge,
-                { backgroundColor: rssiMeta.color + "22" },
-              ]}
-            >
+                { backgroundColor: rssiMeta.color + '22' },
+              ]}>
               <Text
-                style={[styles.proximityBadgeText, { color: rssiMeta.color }]}
-              >
+                style={[styles.proximityBadgeText, { color: rssiMeta.color }]}>
                 {rssiMeta.label}
               </Text>
             </View>
           </View>
 
           <Text style={styles.rssiText}>
-            {device.rssi != null ? `${device.rssi} dBm` : "--"}
+            {device.rssi != null ? `${device.rssi} dBm` : '--'}
           </Text>
         </View>
 
-        <Text style={styles.deviceNameText} numberOfLines={1}>
+        <Text
+          style={styles.deviceNameText}
+          numberOfLines={1}>
           {name}
         </Text>
         <View style={styles.deviceSubRow}>
-          <Text style={styles.deviceIdText} numberOfLines={1}>
+          <Text
+            style={styles.deviceIdText}
+            numberOfLines={1}>
             ID: {device.id}
           </Text>
           <Text style={styles.distanceEstimateText}>{rssiMeta.distance}</Text>
@@ -607,35 +608,35 @@ function EmptyStateView({
   errorMessage: string;
   onStartScan: () => void;
 }) {
-  let title = "No nearby devices found";
+  let title = 'No nearby devices found';
   let message =
     "No active Bluetooth devices detected in range. Tap 'Scan Again' to restart radar.";
-  let actionText = "Scan Again";
+  let actionText = 'Scan Again';
 
   if (isScanning) {
-    title = "Scanning for nearby devices...";
+    title = 'Scanning for nearby devices...';
     message =
-      "Scanning radio channels for SAHA compatible hardware & Bluetooth signals...";
-    actionText = "";
-  } else if (status === "permission-denied") {
-    title = "Bluetooth permission is required";
+      'Scanning radio channels for SAHA compatible hardware & Bluetooth signals...';
+    actionText = '';
+  } else if (status === 'permission-denied') {
+    title = 'Bluetooth permission is required';
     message =
       errorMessage ||
-      "Bluetooth & Location permissions are required to scan nearby devices.";
-    actionText = "Grant Permissions";
-  } else if (status === "bluetooth-off") {
-    title = "Bluetooth is turned off";
-    message = "Turn on Bluetooth on your device to scan for nearby nodes.";
-    actionText = "Try Again";
-  } else if (status === "bluetooth-unavailable") {
-    title = "Development build required";
+      'Bluetooth & Location permissions are required to scan nearby devices.';
+    actionText = 'Grant Permissions';
+  } else if (status === 'bluetooth-off') {
+    title = 'Bluetooth is turned off';
+    message = 'Turn on Bluetooth on your device to scan for nearby nodes.';
+    actionText = 'Try Again';
+  } else if (status === 'bluetooth-unavailable') {
+    title = 'Development build required';
     message =
-      "SAHA BLE scanning requires the native development build. Standard Expo Go does not include native BLE drivers.";
-    actionText = "Retry Scan";
-  } else if (status === "error") {
-    title = "Unable to scan for nearby devices";
-    message = errorMessage || "An unexpected error occurred while scanning.";
-    actionText = "Try Again";
+      'SAHA BLE scanning requires the native development build. Standard Expo Go does not include native BLE drivers.';
+    actionText = 'Retry Scan';
+  } else if (status === 'error') {
+    title = 'Unable to scan for nearby devices';
+    message = errorMessage || 'An unexpected error occurred while scanning.';
+    actionText = 'Try Again';
   }
 
   return (
@@ -648,8 +649,7 @@ function EmptyStateView({
           style={({ pressed }) => [
             styles.emptyActionButton,
             pressed && styles.buttonPressed,
-          ]}
-        >
+          ]}>
           <Text style={styles.emptyActionText}>{actionText}</Text>
         </Pressable>
       )}
@@ -663,56 +663,68 @@ function EmptyStateView({
 
 function DeviceDetailModal({
   device,
+  lastConnectionTest,
+  setLastConnectionTest,
   onClose,
 }: {
   device: DiscoveredDevice;
+  lastConnectionTest: ConnectionTestResult | null;
+  setLastConnectionTest: (result: ConnectionTestResult | null) => void;
   onClose: () => void;
 }) {
   const router = useRouter();
   const rssiMeta = getRssiMetadata(device.rssi);
 
   const [testRunning, setTestRunning] = useState(false);
-  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [testLogs, setTestLogs] = useState<string[]>([]);
 
   const handleOpenChat = () => {
     onClose();
     router.push({
-      pathname: "/chat" as any,
+      pathname: '/chat' as any,
       params: {
         deviceId: device.id,
-        deviceName: device.name ?? (device.isSahaDevice ? "SAHA Node" : "BLE Device"),
+        deviceName:
+          device.name ?? (device.isSahaDevice ? 'SAHA Node' : 'BLE Device'),
       },
     });
   };
 
   const handleRunTest = async () => {
     setTestRunning(true);
-    setTestResult(null);
+    setLastConnectionTest(null);
     setTestLogs([]);
 
     const result = await runSahaConnectionTest(device.id, (_state, logLine) => {
       setTestLogs((prev) => [...prev, logLine]);
     });
 
-    setTestResult(result);
+    setLastConnectionTest(result);
     setTestRunning(false);
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTag}>
-                {device.isSahaDevice ? "SAHA Compatible Node" : "BLE Radio Beacon"}
+                {device.isSahaDevice
+                  ? 'SAHA Compatible Node'
+                  : 'BLE Radio Beacon'}
               </Text>
               <Text style={styles.modalTitle}>
-                {device.name ?? "Unknown BLE Device"}
+                {device.name ?? 'Unknown BLE Device'}
               </Text>
             </View>
-            <Pressable onPress={onClose} style={styles.modalCloseButton}>
+            <Pressable
+              onPress={onClose}
+              style={styles.modalCloseButton}>
               <Text style={styles.modalCloseText}>✕</Text>
             </Pressable>
           </View>
@@ -724,10 +736,10 @@ function DeviceDetailModal({
             </View>
             <View style={styles.modalInfoRow}>
               <Text style={styles.modalInfoLabel}>Signal Strength:</Text>
-              <Text
-                style={[styles.modalInfoValue, { color: rssiMeta.color }]}
-              >
-                {device.rssi != null ? `${device.rssi} dBm (${rssiMeta.label})` : "Unknown"}
+              <Text style={[styles.modalInfoValue, { color: rssiMeta.color }]}>
+                {device.rssi != null
+                  ? `${device.rssi} dBm (${rssiMeta.label})`
+                  : 'Unknown'}
               </Text>
             </View>
             <View style={styles.modalInfoRow}>
@@ -739,12 +751,11 @@ function DeviceDetailModal({
               <Text
                 style={[
                   styles.modalInfoValue,
-                  { color: device.isSahaDevice ? "#10B981" : "#6B7280" },
-                ]}
-              >
+                  { color: device.isSahaDevice ? '#10B981' : '#6B7280' },
+                ]}>
                 {device.isSahaDevice
-                  ? "Supported (Matching Service/Name)"
-                  : "Standard BLE Signal"}
+                  ? 'Supported (Matching Service/Name)'
+                  : 'Standard BLE Signal'}
               </Text>
             </View>
           </View>
@@ -755,9 +766,10 @@ function DeviceDetailModal({
             style={({ pressed }) => [
               styles.chatModalButton,
               pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.chatModalButtonText}>💬 Start BLE Chat Session</Text>
+            ]}>
+            <Text style={styles.chatModalButtonText}>
+              💬 Start BLE Chat Session
+            </Text>
           </Pressable>
 
           {/* Test Connectivity Action (Ping / Pong) */}
@@ -769,34 +781,45 @@ function DeviceDetailModal({
                 styles.testButton,
                 testRunning && styles.testButtonDisabled,
                 pressed && styles.buttonPressed,
-              ]}
-            >
+              ]}>
               {testRunning ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator
+                  size="small"
+                  color="#FFFFFF"
+                />
               ) : (
                 <Text style={styles.testButtonText}>
-                  {device.isSahaDevice ? "Connect & Test Ping/Pong" : "Connect & Read Device"}
+                  {device.isSahaDevice
+                    ? 'Connect & Test Ping/Pong'
+                    : 'Connect & Read Device'}
                 </Text>
               )}
             </Pressable>
 
             {testLogs.length > 0 && (
-              <ScrollView style={styles.logsBox} nestedScrollEnabled>
+              <ScrollView
+                style={styles.logsBox}
+                nestedScrollEnabled>
                 {testLogs.map((line, idx) => (
-                  <Text key={idx} style={styles.logText}>
+                  <Text
+                    key={idx}
+                    style={styles.logText}>
                     {line}
                   </Text>
                 ))}
-                {testResult && (
+                {lastConnectionTest && (
                   <Text
                     style={[
                       styles.logResultText,
-                      { color: testResult.success ? "#10B981" : "#EF4444" },
-                    ]}
-                  >
-                    {testResult.success
-                      ? `SUCCESS! Read Identity: "${testResult.readIdentity}", Received Notification: "${testResult.receivedNotification}"`
-                      : `FAILED: ${testResult.errorMessage}`}
+                      {
+                        color: lastConnectionTest.success
+                          ? '#10B981'
+                          : '#EF4444',
+                      },
+                    ]}>
+                    {lastConnectionTest.success
+                      ? `SUCCESS! Read Identity: "${lastConnectionTest.readIdentity}", Received Notification: "${lastConnectionTest.receivedNotification}"`
+                      : `FAILED: ${lastConnectionTest.errorMessage}`}
                   </Text>
                 )}
               </ScrollView>
@@ -808,8 +831,7 @@ function DeviceDetailModal({
             style={({ pressed }) => [
               styles.modalDoneButton,
               pressed && styles.buttonPressed,
-            ]}
-          >
+            ]}>
             <Text style={styles.modalDoneText}>Close Details</Text>
           </Pressable>
         </View>
@@ -825,7 +847,7 @@ function DeviceDetailModal({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0B132B",
+    backgroundColor: '#0B132B',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -837,50 +859,50 @@ const styles = StyleSheet.create({
   topHeader: {
     minHeight: 56,
     paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   backButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   backButtonText: {
-    color: "#E2E8F0",
+    color: '#E2E8F0',
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   headerTitleGroup: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   headerTitle: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: "900",
+    fontWeight: '900',
     letterSpacing: 0.5,
   },
   headerSubtitle: {
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   scanToggleButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 14,
-    backgroundColor: "#2563EB",
+    backgroundColor: '#2563EB',
   },
   scanToggleButtonActive: {
-    backgroundColor: "#DC2626",
+    backgroundColor: '#DC2626',
   },
   scanToggleText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   buttonPressed: {
     opacity: 0.8,
@@ -891,16 +913,16 @@ const styles = StyleSheet.create({
   radarContainer: {
     width: 250,
     height: 250,
-    alignSelf: "center",
-    justifyContent: "center",
-    alignItems: "center",
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginVertical: 24,
   },
   radarCircle: {
-    position: "absolute",
+    position: 'absolute',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.25)",
+    borderColor: 'rgba(56, 189, 248, 0.25)',
   },
   radarOuterCircle: {
     width: 240,
@@ -915,49 +937,49 @@ const styles = StyleSheet.create({
     height: 80,
   },
   radarLineHorizontal: {
-    position: "absolute",
+    position: 'absolute',
     width: 240,
     height: 1,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
   },
   radarLineVertical: {
-    position: "absolute",
+    position: 'absolute',
     height: 240,
     width: 1,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
   },
   radarPulseWave: {
-    position: "absolute",
+    position: 'absolute',
     width: 200,
     height: 200,
     borderRadius: 100,
     borderWidth: 2,
-    borderColor: "#38BDF8",
-    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    borderColor: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
   },
   radarSweepLineContainer: {
-    position: "absolute",
+    position: 'absolute',
     width: 240,
     height: 240,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   radarSweepBeam: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     width: 120,
     height: 120,
     borderTopRightRadius: 120,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
   },
   centerNode: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#38BDF8",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#38BDF8",
+    backgroundColor: '#38BDF8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#38BDF8',
     shadowRadius: 10,
     shadowOpacity: 0.8,
   },
@@ -965,29 +987,29 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
   },
 
   /* Floating device marker on radar */
   deviceMarker: {
-    position: "absolute",
+    position: 'absolute',
     width: 26,
     height: 26,
     borderRadius: 13,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 2,
-    borderColor: "#FFFFFF",
+    borderColor: '#FFFFFF',
   },
   sahaDeviceMarker: {
-    backgroundColor: "#10B981",
-    shadowColor: "#10B981",
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
     shadowRadius: 8,
     shadowOpacity: 0.9,
   },
   bleDeviceMarker: {
-    backgroundColor: "#3B82F6",
-    shadowColor: "#3B82F6",
+    backgroundColor: '#3B82F6',
+    shadowColor: '#3B82F6',
     shadowRadius: 6,
     shadowOpacity: 0.7,
   },
@@ -995,7 +1017,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
   },
   markerPressed: {
     transform: [{ scale: 1.2 }],
@@ -1005,24 +1027,24 @@ const styles = StyleSheet.create({
   statusBannerCard: {
     borderRadius: 20,
     padding: 16,
-    backgroundColor: "#1E293B",
+    backgroundColor: '#1E293B',
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 20,
   },
   statusHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   statusTitleGroup: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   statusDotContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
   statusDot: {
@@ -1031,32 +1053,32 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   statusTitleText: {
-    color: "#F8FAFC",
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   statusDescription: {
     marginTop: 8,
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   rescanButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   rescanButtonText: {
-    color: "#38BDF8",
+    color: '#38BDF8',
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 
   /* Filter Tabs */
   filterTabsContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 10,
     marginBottom: 14,
   },
@@ -1064,23 +1086,23 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 14,
-    backgroundColor: "#1E293B",
-    alignItems: "center",
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: 'transparent',
   },
   filterTabActive: {
-    backgroundColor: "#0F172A",
-    borderColor: "#38BDF8",
+    backgroundColor: '#0F172A',
+    borderColor: '#38BDF8',
   },
   filterTabText: {
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   filterTabTextActive: {
-    color: "#38BDF8",
-    fontWeight: "900",
+    color: '#38BDF8',
+    fontWeight: '900',
   },
 
   /* Device List & Card */
@@ -1090,16 +1112,16 @@ const styles = StyleSheet.create({
   deviceCard: {
     minHeight: 80,
     borderRadius: 18,
-    overflow: "hidden",
-    flexDirection: "row",
-    backgroundColor: "#1E293B",
+    overflow: 'hidden',
+    flexDirection: 'row',
+    backgroundColor: '#1E293B',
     borderWidth: 1,
   },
   sahaCardBorder: {
-    borderColor: "rgba(16, 185, 129, 0.4)",
+    borderColor: 'rgba(16, 185, 129, 0.4)',
   },
   bleCardBorder: {
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   deviceCardAccent: {
     width: 5,
@@ -1110,19 +1132,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   deviceCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   deviceTagGroup: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   deviceTypeTag: {
     fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
+    fontWeight: '900',
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   proximityBadge: {
@@ -1132,134 +1154,134 @@ const styles = StyleSheet.create({
   },
   proximityBadgeText: {
     fontSize: 10,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   rssiText: {
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   deviceNameText: {
     marginTop: 4,
-    color: "#F8FAFC",
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   deviceSubRow: {
     marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   deviceIdText: {
-    color: "#64748B",
+    color: '#64748B',
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   distanceEstimateText: {
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   /* Empty State */
   emptyContainer: {
     padding: 24,
     borderRadius: 20,
-    backgroundColor: "#1E293B",
-    alignItems: "center",
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   emptyTitle: {
-    color: "#F8FAFC",
+    color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   emptyMessage: {
     marginTop: 6,
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 13,
-    textAlign: "center",
+    textAlign: 'center',
     lineHeight: 18,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   emptyActionButton: {
     marginTop: 16,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 14,
-    backgroundColor: "#2563EB",
+    backgroundColor: '#2563EB',
   },
   emptyActionText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: '800',
   },
 
   /* Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    justifyContent: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
     padding: 20,
   },
   modalContent: {
     borderRadius: 24,
     padding: 20,
-    backgroundColor: "#1E293B",
+    backgroundColor: '#1E293B',
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 16,
   },
   modalTag: {
-    color: "#38BDF8",
+    color: '#38BDF8',
     fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
+    fontWeight: '800',
+    textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   modalTitle: {
     marginTop: 4,
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 20,
-    fontWeight: "900",
+    fontWeight: '900',
   },
   modalCloseButton: {
     padding: 6,
   },
   modalCloseText: {
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   modalInfoGrid: {
     gap: 12,
     paddingVertical: 10,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   modalInfoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 10,
   },
   modalInfoLabel: {
-    color: "#94A3B8",
+    color: '#94A3B8',
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   modalInfoValue: {
-    color: "#F8FAFC",
+    color: '#F8FAFC',
     fontSize: 13,
-    fontWeight: "800",
-    textAlign: "right",
+    fontWeight: '800',
+    textAlign: 'right',
     flexShrink: 1,
   },
   chatModalButton: {
@@ -1267,14 +1289,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 14,
-    backgroundColor: "#10B981",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chatModalButtonText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   testContainer: {
     marginTop: 10,
@@ -1283,50 +1305,50 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 14,
-    backgroundColor: "#10B981",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   testButtonDisabled: {
-    backgroundColor: "#059669",
+    backgroundColor: '#059669',
     opacity: 0.7,
   },
   testButtonText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   logsBox: {
     maxHeight: 140,
     marginTop: 10,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "#0F172A",
+    backgroundColor: '#0F172A',
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   logText: {
-    color: "#CBD5E1",
+    color: '#CBD5E1',
     fontSize: 11,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     marginBottom: 2,
   },
   logResultText: {
     marginTop: 6,
     fontSize: 12,
-    fontWeight: "800",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   modalDoneButton: {
     marginTop: 14,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: "#334155",
-    alignItems: "center",
+    backgroundColor: '#334155',
+    alignItems: 'center',
   },
   modalDoneText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: '800',
   },
 });

@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
@@ -20,20 +21,22 @@ import android.os.Build
 import android.os.ParcelUuid
 import android.provider.Settings
 import android.util.Base64
-import org.json.JSONObject
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
+import com.facebook.react.modules.core.DeviceEventManagerModule
+import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
-  private val bluetoothManager: BluetoothManager? =
+  private val lock = Any()
+  private val bluetoothManager =
     reactContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
   private val bluetoothAdapter: BluetoothAdapter?
     get() = bluetoothManager?.adapter
@@ -44,16 +47,9 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
   private var advertiser: BluetoothLeAdvertiser? = null
   private var gattServer: BluetoothGattServer? = null
   private var txCharacteristic: BluetoothGattCharacteristic? = null
-  private var originalBluetoothName: String? = null
   private var isAdvertising = false
   private var status = STATUS_STOPPED
   private var errorMessage: String? = null
-
-  private val serviceUuid = UUID.fromString(BuildConfig.SAHA_SERVICE_UUID)
-  private val identityUuid = UUID.fromString(BuildConfig.SAHA_IDENTITY_CHARACTERISTIC_UUID)
-  private val rxUuid = UUID.fromString(BuildConfig.SAHA_RX_CHARACTERISTIC_UUID)
-  private val txUuid = UUID.fromString(BuildConfig.SAHA_TX_CHARACTERISTIC_UUID)
-  private val cccdUuid = UUID.fromString(CCCD_UUID)
 
   override fun getName() = MODULE_NAME
 
@@ -64,133 +60,138 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
   fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Double) = Unit
 
   @ReactMethod
-  fun getNodeId(promise: Promise) {
-    promise.resolve(nodeId)
-  }
+  fun getNodeId(promise: Promise) = promise.resolve(nodeId)
 
   @ReactMethod
-  fun getPeripheralStatus(promise: Promise) {
-    promise.resolve(statusMap())
-  }
+  fun getPeripheralStatus(promise: Promise) = promise.resolve(statusMap())
 
   @ReactMethod
   fun startPeripheral(promise: Promise) {
-    if (!hasBluetoothPermissions()) {
-      fail(STATUS_ADVERTISING_FAILED, "Bluetooth permission is not granted")
-      promise.reject("PERMISSION_DENIED", errorMessage)
-      return
-    }
-
-    val adapter = bluetoothAdapter
-    if (adapter == null) {
-      fail(STATUS_UNAVAILABLE, "Bluetooth is not supported on this device")
-      promise.reject("BLUETOOTH_UNAVAILABLE", errorMessage)
-      return
-    }
-    if (!adapter.isEnabled) {
-      fail(STATUS_BLUETOOTH_OFF, "Bluetooth is turned off")
-      promise.reject("BLUETOOTH_OFF", errorMessage)
-      return
-    }
-    if (isAdvertising && gattServer != null) {
-      promise.resolve(statusMap())
-      return
-    }
-
-    status = STATUS_INITIALIZING
-    errorMessage = null
-    emitState()
-
-    try {
-      configureBluetoothName(adapter)
-      val server = bluetoothManager?.openGattServer(reactContext, gattServerCallback)
-      if (server == null) {
-        throw IllegalStateException("Unable to open the Bluetooth GATT server")
+    synchronized(lock) {
+      if (!hasPermissions()) {
+        fail(STATUS_ADVERTISING_FAILED, "Bluetooth advertise/connect permission is not granted")
+        promise.reject("PERMISSION_DENIED", errorMessage)
+        return
       }
-      gattServer = server
-      addSahaService(server)
+      val adapter = bluetoothAdapter
+      if (adapter == null) {
+        fail(STATUS_UNAVAILABLE, "Bluetooth is not supported on this device")
+        promise.reject("BLUETOOTH_UNAVAILABLE", errorMessage)
+        return
+      }
+      if (!adapter.isEnabled) {
+        fail(STATUS_BLUETOOTH_OFF, "Bluetooth is turned off")
+        promise.reject("BLUETOOTH_OFF", errorMessage)
+        return
+      }
+      if (isAdvertising && gattServer != null) {
+        promise.resolve(statusMap())
+        return
+      }
 
-      val leAdvertiser = adapter.bluetoothLeAdvertiser
-        ?: throw IllegalStateException("BLE advertising is not supported on this device")
-      advertiser = leAdvertiser
-      leAdvertiser.startAdvertising(advertiseSettings(), advertiseData(), advertiseCallback)
-      // Advertising becomes active in onStartSuccess.
-      promise.resolve(statusMap())
-    } catch (error: Exception) {
-      cleanupPeripheral()
-      fail(STATUS_ADVERTISING_FAILED, error.message ?: "Unable to start SAHA peripheral")
-      promise.reject("PERIPHERAL_START_FAILED", errorMessage, error)
+      status = STATUS_INITIALIZING
+      errorMessage = null
+      emitState()
+      try {
+        val server = bluetoothManager?.openGattServer(reactContext, gattServerCallback)
+          ?: throw IllegalStateException("Unable to open the Bluetooth GATT server")
+        gattServer = server
+        addSahaService(server)
+
+        val leAdvertiser = adapter.bluetoothLeAdvertiser
+          ?: throw IllegalStateException("BLE advertising is not supported on this device")
+        advertiser = leAdvertiser
+        leAdvertiser.startAdvertising(advertiseSettings(), advertiseData(), advertiseCallback)
+        promise.resolve(statusMap())
+      } catch (error: Exception) {
+        cleanupPeripheral()
+        fail(STATUS_ADVERTISING_FAILED, error.message ?: "Unable to start SAHA peripheral")
+        promise.reject("PERIPHERAL_START_FAILED", errorMessage, error)
+      }
     }
   }
 
   @ReactMethod
   fun stopPeripheral(promise: Promise) {
-    cleanupPeripheral()
-    status = STATUS_STOPPED
-    errorMessage = null
-    emitState()
-    promise.resolve(statusMap())
+    synchronized(lock) {
+      cleanupPeripheral()
+      status = STATUS_STOPPED
+      errorMessage = null
+      emitState()
+      promise.resolve(statusMap())
+    }
   }
 
   @ReactMethod
   fun sendNotification(payload: String, promise: Promise) {
-    val server = gattServer
-    val tx = txCharacteristic
-    if (server == null || tx == null || connectedCentrals.isEmpty()) {
-      promise.resolve(false)
-      return
+    synchronized(lock) {
+      if (!hasConnectPermission()) {
+        promise.reject("PERMISSION_DENIED", "Bluetooth connect permission is not granted")
+        return
+      }
+      if (bluetoothAdapter?.isEnabled != true) {
+        promise.resolve(false)
+        return
+      }
+      val server = gattServer
+      val tx = txCharacteristic
+      if (server == null || tx == null || connectedCentrals.isEmpty()) {
+        promise.resolve(false)
+        return
+      }
+      tx.value = encodeTransportPayload(payload)
+      val queued = connectedCentrals.values.toList().fold(false) { sent, central ->
+        server.notifyCharacteristicChanged(central, tx, false) || sent
+      }
+      promise.resolve(queued)
     }
-
-    tx.value = encodeTransportPayload(payload)
-    var notificationQueued = false
-    connectedCentrals.values.toList().forEach { central ->
-      notificationQueued = server.notifyCharacteristicChanged(central, tx, false) || notificationQueued
-    }
-    promise.resolve(notificationQueued)
   }
 
   private fun addSahaService(server: BluetoothGattServer) {
     val identity = BluetoothGattCharacteristic(
-      identityUuid,
+      SahaBleConfig.identityCharacteristicUuid,
       BluetoothGattCharacteristic.PROPERTY_READ,
       BluetoothGattCharacteristic.PERMISSION_READ,
     )
     val rx = BluetoothGattCharacteristic(
-      rxUuid,
+      SahaBleConfig.rxCharacteristicUuid,
       BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
       BluetoothGattCharacteristic.PERMISSION_WRITE,
     )
     val tx = BluetoothGattCharacteristic(
-      txUuid,
+      SahaBleConfig.txCharacteristicUuid,
       BluetoothGattCharacteristic.PROPERTY_NOTIFY,
       BluetoothGattCharacteristic.PERMISSION_READ,
     )
-    tx.addDescriptor(
-      BluetoothGattDescriptor(
-        cccdUuid,
-        BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE,
-      ),
-    )
-
-    check(server.addService(BluetoothGattService(serviceUuid, BluetoothGattService.SERVICE_TYPE_PRIMARY).apply {
+    tx.addDescriptor(BluetoothGattDescriptor(
+      SahaBleConfig.clientCharacteristicConfigurationUuid,
+      BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE,
+    ))
+    val service = BluetoothGattService(
+      SahaBleConfig.serviceUuid,
+      BluetoothGattService.SERVICE_TYPE_PRIMARY,
+    ).apply {
       addCharacteristic(identity)
       addCharacteristic(rx)
       addCharacteristic(tx)
-    })) { "Unable to register SAHA GATT service" }
+    }
+    check(server.addService(service)) { "Unable to register SAHA GATT service" }
     txCharacteristic = tx
   }
 
   private val gattServerCallback = object : BluetoothGattServerCallback() {
     override fun onConnectionStateChange(device: BluetoothDevice, statusCode: Int, newState: Int) {
-      if (newState == BluetoothProfileState.CONNECTED) {
-        connectedCentrals[device.address] = device
-        status = STATUS_CONNECTED
-      } else {
-        connectedCentrals.remove(device.address)
-        status = if (isAdvertising) STATUS_ADVERTISING else STATUS_STOPPED
+      synchronized(lock) {
+        if (newState == BluetoothProfile.STATE_CONNECTED) {
+          connectedCentrals[device.address] = device
+          status = STATUS_CONNECTED
+        } else {
+          connectedCentrals.remove(device.address)
+          status = if (isAdvertising) STATUS_ADVERTISING else STATUS_STOPPED
+        }
+        emitCentralConnection(device.address, newState == BluetoothProfile.STATE_CONNECTED)
+        emitState()
       }
-      emitCentralConnection(device.address, newState == BluetoothProfileState.CONNECTED)
-      emitState()
     }
 
     override fun onCharacteristicReadRequest(
@@ -199,13 +200,14 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
       offset: Int,
       characteristic: BluetoothGattCharacteristic,
     ) {
-      if (characteristic.uuid != identityUuid) {
+      if (characteristic.uuid != SahaBleConfig.identityCharacteristicUuid) {
         gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, offset, null)
         return
       }
-      val identity = advertisingName.toByteArray(StandardCharsets.UTF_8)
-      val value = if (offset <= identity.size) identity.copyOfRange(offset, identity.size) else byteArrayOf()
-      gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+      // Identity uses the same Base64-over-UTF-8 transport expected by JS decodeBase64.
+      val value = encodeTransportPayload(advertisingName)
+      val response = if (offset <= value.size) value.copyOfRange(offset, value.size) else byteArrayOf()
+      gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, response)
     }
 
     override fun onCharacteristicWriteRequest(
@@ -217,23 +219,14 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
       offset: Int,
       value: ByteArray,
     ) {
-      if (characteristic.uuid != rxUuid || preparedWrite || offset != 0) {
-        if (responseNeeded) {
-          gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, offset, null)
-        }
+      if (characteristic.uuid != SahaBleConfig.rxCharacteristicUuid || preparedWrite || offset != 0) {
+        if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, offset, null)
         return
       }
-      if (responseNeeded) {
-        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
-      }
-
+      if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
       val payload = decodeTransportPayload(value)
       emitDataReceived(device.address, payload)
-      if (payload == PING_PAYLOAD) {
-        notifyCentrals(PONG_PAYLOAD)
-      } else {
-        createProtocolPong(payload)?.let(::notifyCentrals)
-      }
+      createProtocolPong(payload)?.let(::notifyCentrals)
     }
 
     override fun onDescriptorWriteRequest(
@@ -245,15 +238,12 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
       offset: Int,
       value: ByteArray,
     ) {
-      val isTxCccd = descriptor.uuid == cccdUuid && descriptor.characteristic.uuid == txUuid
+      val isTxCccd = descriptor.uuid == SahaBleConfig.clientCharacteristicConfigurationUuid &&
+        descriptor.characteristic.uuid == SahaBleConfig.txCharacteristicUuid
       if (isTxCccd && !preparedWrite && offset == 0) {
         descriptor.value = value
-        if (responseNeeded) {
-          gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
-        }
-        return
-      }
-      if (responseNeeded) {
+        if (responseNeeded) gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+      } else if (responseNeeded) {
         gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, offset, null)
       }
     }
@@ -261,16 +251,30 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
 
   private val advertiseCallback = object : AdvertiseCallback() {
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-      isAdvertising = true
-      status = if (connectedCentrals.isEmpty()) STATUS_ADVERTISING else STATUS_CONNECTED
-      errorMessage = null
-      emitState()
+      synchronized(lock) {
+        isAdvertising = true
+        status = if (connectedCentrals.isEmpty()) STATUS_ADVERTISING else STATUS_CONNECTED
+        errorMessage = null
+        emitState()
+      }
     }
 
     override fun onStartFailure(errorCode: Int) {
-      cleanupPeripheral()
-      fail(STATUS_ADVERTISING_FAILED, "BLE advertising failed (code $errorCode)")
+      synchronized(lock) {
+        cleanupPeripheral()
+        fail(STATUS_ADVERTISING_FAILED, "BLE advertising failed (code $errorCode)")
+      }
     }
+  }
+
+  private fun cleanupPeripheral() {
+    if (hasAdvertisePermission()) advertiser?.stopAdvertising(advertiseCallback)
+    advertiser = null
+    gattServer?.close()
+    gattServer = null
+    txCharacteristic = null
+    connectedCentrals.clear()
+    isAdvertising = false
   }
 
   private fun notifyCentrals(payload: String): Boolean {
@@ -282,26 +286,6 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
     }
   }
 
-  @Suppress("DEPRECATION")
-  private fun configureBluetoothName(adapter: BluetoothAdapter) {
-    if (adapter.name == advertisingName) return
-    originalBluetoothName = adapter.name
-    adapter.name = advertisingName
-  }
-
-  @Suppress("DEPRECATION")
-  private fun cleanupPeripheral() {
-    advertiser?.stopAdvertising(advertiseCallback)
-    advertiser = null
-    gattServer?.close()
-    gattServer = null
-    txCharacteristic = null
-    connectedCentrals.clear()
-    isAdvertising = false
-    originalBluetoothName?.let { bluetoothAdapter?.name = it }
-    originalBluetoothName = null
-  }
-
   private fun advertiseSettings() = AdvertiseSettings.Builder()
     .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
     .setConnectable(true)
@@ -309,8 +293,9 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
     .build()
 
   private fun advertiseData() = AdvertiseData.Builder()
-    .addServiceUuid(ParcelUuid(serviceUuid))
-    .setIncludeDeviceName(true)
+    .addServiceUuid(ParcelUuid(SahaBleConfig.serviceUuid))
+    // Do not change the device-wide Bluetooth name. Discovery identifies SAHA by service UUID.
+    .setIncludeDeviceName(false)
     .build()
 
   private fun statusMap(): WritableMap = Arguments.createMap().apply {
@@ -339,8 +324,7 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
   )
 
   private fun emit(eventName: String, payload: WritableMap) {
-    reactContext
-      .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+    reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
       .emit(eventName, payload)
   }
 
@@ -350,11 +334,13 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
     emitState()
   }
 
-  private fun hasBluetoothPermissions(): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-    return reactContext.checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED &&
-      reactContext.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-  }
+  private fun hasPermissions() = hasAdvertisePermission() && hasConnectPermission()
+
+  private fun hasAdvertisePermission() = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+    reactContext.checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
+
+  private fun hasConnectPermission() = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+    reactContext.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
   private fun createNodeId(): String {
     val androidId = Settings.Secure.getString(reactContext.contentResolver, Settings.Secure.ANDROID_ID)
@@ -371,6 +357,7 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
     String(value, StandardCharsets.UTF_8)
   }
 
+  // Ping/pong is part of the established SAHA GATT contract, not a chat feature.
   private fun createProtocolPong(payload: String): String? = try {
     val message = JSONObject(payload)
     if (message.optString("type") != "ping") return null
@@ -379,10 +366,6 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
     JSONObject().put("type", "pong").put("id", id).toString()
   } catch (_: Exception) {
     null
-  }
-
-  private object BluetoothProfileState {
-    const val CONNECTED = 2
   }
 
   private companion object {
@@ -394,8 +377,5 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
     const val STATUS_CONNECTED = "Connected"
     const val STATUS_BLUETOOTH_OFF = "Bluetooth Off"
     const val STATUS_UNAVAILABLE = "Unavailable"
-    const val PING_PAYLOAD = "ping"
-    const val PONG_PAYLOAD = "pong"
-    const val CCCD_UUID = "00002902-0000-1000-8000-00805f9b34fb"
   }
 }

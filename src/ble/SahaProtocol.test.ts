@@ -11,7 +11,12 @@ import {
 
 describe('SAHA message protocol', () => {
   test('creates and validates a chat message', () => {
-    const message = createChatMessage('SAHA-ABCD', 'Hello', 'msg-123', 1788712345);
+    const message = createChatMessage(
+      'SAHA-ABCD',
+      'Hello',
+      'msg-123',
+      1788712345,
+    );
 
     expect(message).toEqual({
       type: 'message',
@@ -38,26 +43,40 @@ describe('SAHA message protocol', () => {
   });
 
   test('rejects missing message fields', () => {
-    expect(validateMessage({ type: 'message', id: 'msg-1', payload: 'Hello' })).toBe(false);
+    expect(
+      validateMessage({ type: 'message', id: 'msg-1', payload: 'Hello' }),
+    ).toBe(false);
     expect(validateMessage({ type: 'ping' })).toBe(false);
   });
 
   test('rejects unknown message types', () => {
-    expect(validateMessage({ type: 'broadcast', id: 'msg-1', payload: 'Hello' })).toBe(false);
+    expect(
+      validateMessage({ type: 'broadcast', id: 'msg-1', payload: 'Hello' }),
+    ).toBe(false);
   });
 
   test('rejects extra fields on ping and pong', () => {
-    expect(validateMessage({ type: 'ping', id: 'test-1', payload: 'unexpected' })).toBe(false);
-    expect(validateMessage({ type: 'pong', id: 'test-1', senderId: 'SAHA-ABCD' })).toBe(false);
+    expect(
+      validateMessage({ type: 'ping', id: 'test-1', payload: 'unexpected' }),
+    ).toBe(false);
+    expect(
+      validateMessage({ type: 'pong', id: 'test-1', senderId: 'SAHA-ABCD' }),
+    ).toBe(false);
   });
 
   test('rejects malformed JSON payloads', () => {
-    expect(() => decodeMessage('{not-json')).toThrow('Invalid SAHA message JSON');
-    expect(() => decodeMessage(JSON.stringify({ type: 'message', id: 'msg-1' }))).toThrow('Invalid SAHA message');
+    expect(() => decodeMessage('{not-json')).toThrow(
+      'Invalid SAHA message JSON',
+    );
+    expect(() =>
+      decodeMessage(JSON.stringify({ type: 'message', id: 'msg-1' })),
+    ).toThrow('Invalid SAHA message');
   });
 
   test('rejects invalid constructor values', () => {
     expect(() => createPong('')).toThrow('Invalid SAHA message');
-    expect(() => createChatMessage('', 'Hello')).toThrow('Invalid SAHA message');
+    expect(() => createChatMessage('', 'Hello')).toThrow(
+      'Invalid SAHA message',
+    );
   });
 });

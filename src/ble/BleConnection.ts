@@ -1,20 +1,25 @@
-import { bleManager } from "./BleManager";
+import type {
+  Characteristic,
+  Device,
+  Subscription,
+} from 'react-native-ble-plx';
+import { bleManager } from './BleManager';
 import {
   IDENTITY_CHARACTERISTIC_UUID,
   RX_CHARACTERISTIC_UUID,
   SAHA_SERVICE_UUID,
   TX_CHARACTERISTIC_UUID,
-} from "./config";
-import type { ConnectionTestState } from "./types";
-import type { Characteristic, Device, Subscription } from "react-native-ble-plx";
+} from './config';
 import {
   createPing,
   decodeMessage,
   encodeMessage,
   type SahaMessage,
-} from "./SahaProtocol";
+} from './SahaProtocol';
+import type { ConnectionTestState } from './types';
 
-const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_CHARS =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 function encodeUtf8(input: string): number[] {
   const bytes: number[] = [];
@@ -58,7 +63,7 @@ function encodeUtf8(input: string): number[] {
 }
 
 function decodeUtf8(bytes: number[]): string {
-  let output = "";
+  let output = '';
 
   for (let index = 0; index < bytes.length; index += 1) {
     const first = bytes[index];
@@ -78,12 +83,12 @@ function decodeUtf8(bytes: number[]): string {
       codePoint = first & 0x07;
       sequenceLength = 4;
     } else {
-      output += "\ufffd";
+      output += '\ufffd';
       continue;
     }
 
     if (index + sequenceLength > bytes.length) {
-      output += "\ufffd";
+      output += '\ufffd';
       break;
     }
 
@@ -101,10 +106,11 @@ function decodeUtf8(bytes: number[]): string {
       (sequenceLength === 2 && codePoint < 0x80) ||
       (sequenceLength === 3 && codePoint < 0x800) ||
       (sequenceLength === 4 && codePoint < 0x10000);
-    const isInvalidCodePoint = codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff);
+    const isInvalidCodePoint =
+      codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff);
 
     if (!valid || isOverlong || isInvalidCodePoint) {
-      output += "\ufffd";
+      output += '\ufffd';
       index += valid ? sequenceLength - 2 : 0;
       continue;
     }
@@ -113,7 +119,10 @@ function decodeUtf8(bytes: number[]): string {
       output += String.fromCharCode(codePoint);
     } else {
       const adjusted = codePoint - 0x10000;
-      output += String.fromCharCode(0xd800 + (adjusted >> 10), 0xdc00 + (adjusted & 0x3ff));
+      output += String.fromCharCode(
+        0xd800 + (adjusted >> 10),
+        0xdc00 + (adjusted & 0x3ff),
+      );
     }
     index += sequenceLength - 1;
   }
@@ -123,7 +132,7 @@ function decodeUtf8(bytes: number[]): string {
 
 export function encodeBase64(input: string): string {
   const bytes = encodeUtf8(input);
-  let output = "";
+  let output = '';
 
   for (let index = 0; index < bytes.length; index += 3) {
     const first = bytes[index];
@@ -131,32 +140,41 @@ export function encodeBase64(input: string): string {
     const third = bytes[index + 2];
 
     output += BASE64_CHARS[first >> 2];
-    output += BASE64_CHARS[((first & 0x03) << 4) | (second === undefined ? 0 : second >> 4)];
-    output += second === undefined
-      ? "="
-      : BASE64_CHARS[((second & 0x0f) << 2) | (third === undefined ? 0 : third >> 6)];
-    output += third === undefined ? "=" : BASE64_CHARS[third & 0x3f];
+    output +=
+      BASE64_CHARS[
+        ((first & 0x03) << 4) | (second === undefined ? 0 : second >> 4)
+      ];
+    output +=
+      second === undefined
+        ? '='
+        : BASE64_CHARS[
+            ((second & 0x0f) << 2) | (third === undefined ? 0 : third >> 6)
+          ];
+    output += third === undefined ? '=' : BASE64_CHARS[third & 0x3f];
   }
 
   return output;
 }
 
 export function decodeBase64(input: string): string {
-  if (input.length === 0) return "";
+  if (input.length === 0) return '';
   if (input.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(input)) {
-    throw new Error("Invalid Base64 input");
+    throw new Error('Invalid Base64 input');
   }
 
   const bytes: number[] = [];
   for (let index = 0; index < input.length; index += 4) {
     const first = BASE64_CHARS.indexOf(input[index]);
     const second = BASE64_CHARS.indexOf(input[index + 1]);
-    const third = input[index + 2] === "=" ? 0 : BASE64_CHARS.indexOf(input[index + 2]);
-    const fourth = input[index + 3] === "=" ? 0 : BASE64_CHARS.indexOf(input[index + 3]);
+    const third =
+      input[index + 2] === '=' ? 0 : BASE64_CHARS.indexOf(input[index + 2]);
+    const fourth =
+      input[index + 3] === '=' ? 0 : BASE64_CHARS.indexOf(input[index + 3]);
 
     bytes.push((first << 2) | (second >> 4));
-    if (input[index + 2] !== "=") bytes.push(((second & 0x0f) << 4) | (third >> 2));
-    if (input[index + 3] !== "=") bytes.push(((third & 0x03) << 6) | fourth);
+    if (input[index + 2] !== '=')
+      bytes.push(((second & 0x0f) << 4) | (third >> 2));
+    if (input[index + 3] !== '=') bytes.push(((third & 0x03) << 6) | fourth);
   }
 
   return decodeUtf8(bytes);
@@ -189,60 +207,67 @@ export async function runSahaConnectionTest(
   let txSubscription: Subscription | null = null;
 
   try {
-    logStep("connecting", "Device discovered");
-    logStep("connecting", `Connecting to device ${deviceId}...`);
+    logStep('connecting', 'Device discovered');
+    logStep('connecting', `Connecting to device ${deviceId}...`);
 
     const rawManager = bleManager.getNativeManager();
     if (!rawManager) {
-      throw new Error("react-native-ble-plx manager unavailable");
+      throw new Error('react-native-ble-plx manager unavailable');
     }
 
-    connectedDevice = await rawManager.connectToDevice(deviceId, { timeout: 10000 });
-    logStep("connecting", `Connected to ${deviceId}`);
+    connectedDevice = await rawManager.connectToDevice(deviceId, {
+      timeout: 10000,
+    });
+    logStep('connecting', `Connected to ${deviceId}`);
 
-    logStep("discovering", "Discovering services and characteristics...");
+    logStep('discovering', 'Discovering services and characteristics...');
     await connectedDevice.discoverAllServicesAndCharacteristics();
-    logStep("discovering", "Discovered GATT services");
+    logStep('discovering', 'Discovered GATT services');
     const services = await connectedDevice.services();
     const hasSahaService = services.some(
-      (service) => service.uuid.toLowerCase() === SAHA_SERVICE_UUID.toLowerCase(),
+      (service) =>
+        service.uuid.toLowerCase() === SAHA_SERVICE_UUID.toLowerCase(),
     );
     if (!hasSahaService) {
-      throw new Error("SAHA service was not found");
+      throw new Error('SAHA service was not found');
     }
-    logStep("discovering", "SAHA service found");
+    logStep('discovering', 'SAHA service found');
 
-    logStep("reading_identity", "Reading Identity characteristic...");
+    logStep('reading_identity', 'Reading Identity characteristic...');
     let readIdentity: string | null = null;
     try {
-      const identityChar: Characteristic = await connectedDevice.readCharacteristicForService(
-        SAHA_SERVICE_UUID,
-        IDENTITY_CHARACTERISTIC_UUID,
-      );
+      const identityChar: Characteristic =
+        await connectedDevice.readCharacteristicForService(
+          SAHA_SERVICE_UUID,
+          IDENTITY_CHARACTERISTIC_UUID,
+        );
       if (identityChar.value) {
         readIdentity = decodeBase64(identityChar.value);
-        logStep("reading_identity", `Read Identity: "${readIdentity}"`);
+        logStep('reading_identity', `Read Identity: "${readIdentity}"`);
       } else {
-        logStep("reading_identity", "Identity characteristic was empty");
+        logStep('reading_identity', 'Identity characteristic was empty');
       }
     } catch (readError) {
-      const msg = readError instanceof Error ? readError.message : "Read error";
-      logStep("reading_identity", `Identity read warning: ${msg}`);
+      const msg = readError instanceof Error ? readError.message : 'Read error';
+      logStep('reading_identity', `Identity read warning: ${msg}`);
     }
-    logStep("reading_identity", "Identity read");
+    logStep('reading_identity', 'Identity read');
 
-    logStep("subscribing_tx", "Subscribing to TX characteristic notifications...");
+    logStep(
+      'subscribing_tx',
+      'Subscribing to TX characteristic notifications...',
+    );
 
     let receivedNotification: string | null = null;
 
     const notificationPromise = new Promise<SahaMessage>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error("Timeout waiting for TX notification (pong)"));
+        reject(new Error('Timeout waiting for TX notification (pong)'));
       }, 7000);
 
       if (!connectedDevice) {
         clearTimeout(timeout);
-        reject(new Error("Device disconnected before subscribing"));
+        reject(new Error('Device disconnected before subscribing'));
         return;
       }
 
@@ -261,39 +286,43 @@ export async function runSahaConnectionTest(
             try {
               resolve(decodeMessage(decoded));
             } catch (error) {
-              reject(error instanceof Error ? error : new Error("Invalid SAHA response"));
+              reject(
+                error instanceof Error
+                  ? error
+                  : new Error('Invalid SAHA response'),
+              );
             }
           }
         },
       );
     });
-    logStep("subscribing_tx", "TX subscribed");
+    logStep('subscribing_tx', 'TX subscribed');
 
     const ping = createPing();
-    logStep("writing_ping", `Ping sent (${ping.id})`);
+    logStep('writing_ping', `Ping sent (${ping.id})`);
     const pingBase64 = encodeBase64(encodeMessage(ping));
     await connectedDevice.writeCharacteristicWithResponseForService(
       SAHA_SERVICE_UUID,
       RX_CHARACTERISTIC_UUID,
       pingBase64,
     );
-    logStep("writing_ping", "Awaiting pong notification...");
+    logStep('writing_ping', 'Awaiting pong notification...');
 
     const response: SahaMessage = await notificationPromise;
-    if (response.type !== "pong" || response.id !== ping.id) {
+    if (response.type !== 'pong' || response.id !== ping.id) {
       throw new Error(
         `Invalid pong response: expected pong ${ping.id}, received ${response.type} ${response.id}`,
       );
     }
     receivedNotification = encodeMessage(response);
-    logStep("ping_pong_success", "Pong received");
+    logStep('ping_pong_success', 'Pong received');
 
     // Clean disconnect
     if (txSubscription) {
       (txSubscription as Subscription).remove();
     }
     await connectedDevice.cancelConnection();
-    logStep("ping_pong_success", "Disconnected");
+    logStep('ping_pong_success', 'Disconnected');
 
     return {
       success: true,
@@ -303,8 +332,9 @@ export async function runSahaConnectionTest(
       stepsLog,
     };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Connection test failed";
-    logStep("error", `Error: ${msg}`);
+    const msg =
+      error instanceof Error ? error.message : 'Connection test failed';
+    logStep('error', `Error: ${msg}`);
 
     if (txSubscription) {
       (txSubscription as Subscription).remove();

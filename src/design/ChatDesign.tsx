@@ -160,7 +160,10 @@ export function ConversationDesign({
               accessibilityRole="button"
               accessibilityLabel="Reconnect"
               onPress={onReconnect}
-              style={({ pressed }) => [styles.reconnectButton, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.reconnectButton,
+                pressed && styles.pressed,
+              ]}>
               <Text style={styles.reconnectText}>Reconnect</Text>
             </Pressable>
           ) : (
@@ -169,7 +172,11 @@ export function ConversationDesign({
               accessibilityLabel="Disconnect"
               onPress={onDisconnect}
               style={styles.moreButton}>
-              <Ionicons name="ellipsis-vertical" size={17} color="#A0A09B" />
+              <Ionicons
+                name="ellipsis-vertical"
+                size={17}
+                color="#A0A09B"
+              />
             </Pressable>
           )}
         </View>
@@ -265,11 +272,19 @@ function Bubble({ message }: { message: ChatMessage }) {
           {message.content}
         </Text>
         <View style={styles.bubbleMeta}>
-          <Text style={[styles.bubbleTime, message.isSelf && styles.bubbleTimeSelf]}>
+          <Text
+            style={[
+              styles.bubbleTime,
+              message.isSelf && styles.bubbleTimeSelf,
+            ]}>
             {time}
           </Text>
           {message.isSelf && (
-            <Text style={[styles.bubbleStatus, message.isSelf && styles.bubbleTimeSelf]}>
+            <Text
+              style={[
+                styles.bubbleStatus,
+                message.isSelf && styles.bubbleTimeSelf,
+              ]}>
               {message.status === 'sent' ? 'Delivered locally' : message.status}
             </Text>
           )}
@@ -351,7 +366,12 @@ const styles = StyleSheet.create({
   connectionDot: { width: 6, height: 6, borderRadius: 3 },
   connectionText: { color: '#A0A09B', fontSize: 9 },
   moreButton: { width: 28, alignItems: 'flex-end' },
-  reconnectButton: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 7, backgroundColor: '#DDE4FF' },
+  reconnectButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 7,
+    backgroundColor: '#DDE4FF',
+  },
   reconnectText: { color: '#3159DB', fontSize: 9, fontWeight: '700' },
   errorText: {
     paddingHorizontal: 30,
@@ -388,7 +408,12 @@ const styles = StyleSheet.create({
   bubblePeer: { backgroundColor: '#ECEBE9', borderBottomLeftRadius: 4 },
   bubbleText: { color: '#30363B', fontSize: 12, lineHeight: 17 },
   bubbleTextSelf: { color: '#FFFFFF' },
-  bubbleMeta: { flexDirection: 'row', justifyContent: 'flex-end', gap: 5, marginTop: 4 },
+  bubbleMeta: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 5,
+    marginTop: 4,
+  },
   bubbleTime: { color: '#979994', fontSize: 8 },
   bubbleTimeSelf: { color: '#D8E0FF' },
   bubbleStatus: { fontSize: 8 },

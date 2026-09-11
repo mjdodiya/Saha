@@ -85,7 +85,7 @@ export default function HomeScreen() {
         isScanning={isScanning}
         onOpenNearby={() => router.push('/nearby')}
         onOpenMessages={() => router.push('/chat')}
-        onDiagnose={() => router.push('/nearby')}
+        onDiagnose={() => router.push('/diagnostics')}
         onStartNearbyScan={() => {
           if (!isScanning) startScan();
           router.push('/nearby');
