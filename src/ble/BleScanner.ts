@@ -109,6 +109,8 @@ export class BleScanner {
 
   private isScanning = false;
 
+  private bluetoothWasOff = false;
+
   constructor(callbacks: BleScannerCallbacks) {
     this.callbacks = callbacks;
   }
@@ -118,6 +120,24 @@ export class BleScanner {
     this.stateSubscription = bleManager.onStateChange((state) => {
       log(`Bluetooth state: ${state}`);
       this.callbacks.onBluetoothStateChange(state);
+
+      if (state === 'PoweredOff') {
+        this.bluetoothWasOff = true;
+        this.callbacks.onStatusChange('bluetooth-off');
+        this.callbacks.onError(
+          'Bluetooth is turned off. Turn on Bluetooth to scan.',
+        );
+        void this.stopScan('bluetooth-off');
+        return;
+      }
+
+      if (state === 'PoweredOn' && this.bluetoothWasOff) {
+        this.bluetoothWasOff = false;
+        // A previous scan may have left the UI in bluetooth-off even though the
+        // adapter state has changed externally.
+        this.callbacks.onStatusChange('idle');
+        this.callbacks.onError('');
+      }
     }, true);
   }
 
@@ -236,7 +256,11 @@ export class BleScanner {
       return;
     }
 
-    this.callbacks.onStatusChange(nextStatus);
+    this.callbacks.onStatusChange(
+      nextStatus === 'bluetooth-off' && !this.bluetoothWasOff
+        ? 'idle'
+        : nextStatus,
+    );
   }
 
   cleanup() {

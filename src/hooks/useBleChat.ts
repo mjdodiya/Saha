@@ -47,6 +47,14 @@ export function useBleChat(
     setConnectionState(state);
   }, []);
 
+  const resetChatSession = useCallback(() => {
+    seenMessageIdsRef.current.clear();
+    setMessages([]);
+    peerIdentityRef.current = null;
+    setPeerIdentity(null);
+    setErrorMessage(null);
+  }, []);
+
   // Helper to add a message to chat history state with debugging log
   const addMessage = useCallback(
     ({
@@ -114,8 +122,9 @@ export function useBleChat(
         console.log('[SAHA-BLE][CENTRAL] Disconnect warning/error:', err);
       }
     }
+    resetChatSession();
     updateConnectionState('disconnected');
-  }, [updateConnectionState]);
+  }, [resetChatSession, updateConnectionState]);
 
   // Connect as Central to target peripheral device
   const connectToPeer = useCallback(
@@ -127,9 +136,7 @@ export function useBleChat(
       const attemptId = connectionAttemptRef.current + 1;
       connectionAttemptRef.current = attemptId;
       connectionInFlightRef.current = true;
-      peerIdentityRef.current = null;
-      setPeerIdentity(null);
-      setErrorMessage(null);
+      resetChatSession();
       updateConnectionState('connecting');
       console.log(
         `[SAHA-BLE][CENTRAL] Initiating BLE connection to peripheral device: ${deviceId}`,
@@ -305,7 +312,7 @@ export function useBleChat(
         }
       }
     },
-    [addMessage, updateConnectionState],
+    [addMessage, resetChatSession, updateConnectionState],
   );
 
   // Handle incoming Peripheral RX write data (Central -> Peripheral)

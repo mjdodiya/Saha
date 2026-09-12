@@ -20,7 +20,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.provider.Settings
-import android.util.Base64
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -204,7 +203,8 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
         gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED, offset, null)
         return
       }
-      // Identity uses the same Base64-over-UTF-8 transport expected by JS decodeBase64.
+      // react-native-ble-plx exposes raw GATT bytes to JS as Base64. Keep the
+      // characteristic value itself UTF-8 so it is encoded exactly once.
       val value = encodeTransportPayload(advertisingName)
       val response = if (offset <= value.size) value.copyOfRange(offset, value.size) else byteArrayOf()
       gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, response)
@@ -349,24 +349,23 @@ class SahaBlePeripheralModule(private val reactContext: ReactApplicationContext)
   }
 
   private fun encodeTransportPayload(payload: String): ByteArray =
-    Base64.encode(payload.toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP)
+    payload.toByteArray(StandardCharsets.UTF_8)
 
-  private fun decodeTransportPayload(value: ByteArray): String = try {
-    String(Base64.decode(value, Base64.DEFAULT), StandardCharsets.UTF_8)
-  } catch (_: IllegalArgumentException) {
+  private fun decodeTransportPayload(value: ByteArray): String =
     String(value, StandardCharsets.UTF_8)
-  }
 
   // Ping/pong is part of the established SAHA GATT contract, not a chat feature.
-  private fun createProtocolPong(payload: String): String? = try {
-    val message = JSONObject(payload)
-    if (message.optString("type") != "ping") return null
-    val id = message.optString("id")
-    if (id.isEmpty()) return null
-    JSONObject().put("type", "pong").put("id", id).toString()
-  } catch (_: Exception) {
-    null
-  }
+  private fun createProtocolPong(payload: String): String? {
+    return try {
+      val message = JSONObject(payload)
+      if (message.optString("type") != "ping") return null
+      val id = message.optString("id")
+      if (id.isEmpty()) return null
+      JSONObject().put("type", "pong").put("id", id).toString()
+    } catch (_: Exception) {
+      null
+    }
+}
 
   private companion object {
     const val MODULE_NAME = "SahaBlePeripheral"
